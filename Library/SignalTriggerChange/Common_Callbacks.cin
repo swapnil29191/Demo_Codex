@@ -37,10 +37,10 @@ variables
   long gExpectedValue; 
   
   //! Variable : Expected min value range of Signal/System Variable
-  long gExpectedMinValue;
+  double gExpectedMinValue;
   
   //! Variable : Expected max value range of Signal/System Variable
-  long gExpectedMaxValue;
+  double gExpectedMaxValue;
   
   //! Variable : Expected Value Inside Range 
   enum eChangeExpected gIsValueInsideRangeExpected;
@@ -576,7 +576,7 @@ void SVC_CAPL_Callback_Sys_Value_Range_CycleDetection(dword check)
       gCurrentState = STATE_VIOLATED;
       gViolationStartTime = currentTime;
       
-      testStepWarning("", "SVC_CAPL_Callback_Sys_CycleDetection, VIOLATION STARTED at %d ms, value: %d (Range: %d...%d)", 
+      testStepWarning("", "SVC_CAPL_Callback_Sys_CycleDetection, VIOLATION STARTED at %d ms, value: %d (Range: %.3f...%.3f)", 
                       currentTime, measureValue, gExpectedMinValue, gExpectedMaxValue);
     }
     // else: already in violation, continue
@@ -710,7 +710,7 @@ void SVC_CAPL_Callback_Signal_Value_Range_CycleDetection(dword check)
       gCurrentState = STATE_VIOLATED;
       gViolationStartTime = currentTime;
       
-      testStepWarning("", "SVC_CAPL_Callback_Signal_CycleDetection, VIOLATION STARTED at %d ms, value: %d (Range: %d...%d)", 
+      testStepWarning("", "SVC_CAPL_Callback_Signal_CycleDetection, VIOLATION STARTED at %d ms, value: %d (Range: %.3f...%.3f)", 
                       currentTime, measureValue, gExpectedMinValue, gExpectedMaxValue);
     }
     // else: already in violation, continue
