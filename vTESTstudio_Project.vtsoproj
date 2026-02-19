@@ -1,0 +1,131 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project>
+  <FileFormatVersion>13</FileFormatVersion>
+  <ProjectModelRoot>
+    <UniqueId>ddfumskeajgg</UniqueId>
+    <EmbeddedSysVars>
+      <ExternalFiles />
+      <MainFile>
+      </MainFile>
+      <PersistencyGuid>v909r8db1k1t</PersistencyGuid>
+    </EmbeddedSysVars>
+    <CANoeEmbeddedSysVars>
+      <ExternalFiles />
+      <MainFile>
+      </MainFile>
+      <PersistencyGuid>hsc0t2f5elaj</PersistencyGuid>
+    </CANoeEmbeddedSysVars>
+    <EmbeddedBasicDiagnosisFiles />
+    <EmbeddedEthernetPortsFile>
+      <Content>
+      </Content>
+      <PersistencyGuid>6nc89jni7igg</PersistencyGuid>
+    </EmbeddedEthernetPortsFile>
+    <ExternalReferences />
+    <Libraries />
+    <ProjectRoot>
+      <TestUnits>
+        <FolderName>Test Units</FolderName>
+        <SubFolders>
+          <TestUnit>
+            <FolderName>TestUnit1</FolderName>
+            <Files>
+              <ProjectFile>
+                <FileName>NewFile1.vtt</FileName>
+                <PersistencyGuid>ll4b7vn1rc7e</PersistencyGuid>
+              </ProjectFile>
+              <ProjectFile>
+                <FileName>NewFile1.can</FileName>
+                <PersistencyGuid>4v4mn4n9tg6d</PersistencyGuid>
+              </ProjectFile>
+            </Files>
+            <PersistencyGuid>ineifk2hsbo9</PersistencyGuid>
+            <FilesExcludedFromTestTree />
+            <FilesExcludedFromBuild />
+            <EditableParameterFiles />
+            <ExcludeFromBuild>False</ExcludeFromBuild>
+            <EmbeddedTUVariantProperties>
+              <Content>&lt;TUVariantPropertyModel&gt;
+  &lt;FileFormatVersion&gt;1&lt;/FileFormatVersion&gt;
+  &lt;TUVariantPropertyValues&gt;
+    &lt;VariantPropertyRefs /&gt;
+  &lt;/TUVariantPropertyValues&gt;
+&lt;/TUVariantPropertyModel&gt;</Content>
+              <PersistencyGuid>4smc6lus97bq</PersistencyGuid>
+            </EmbeddedTUVariantProperties>
+            <EmbeddedTUProperties>
+              <Content>&lt;TUProperties&gt;
+  &lt;Caption&gt;&lt;/Caption&gt;
+  &lt;Description&gt;&lt;/Description&gt;
+  &lt;Version&gt;&lt;/Version&gt;
+  &lt;PreBuildEvent&gt;&lt;/PreBuildEvent&gt;
+  &lt;PostBuildEvent&gt;&lt;/PostBuildEvent&gt;
+  &lt;TestDesigners&gt;
+    &lt;Columns /&gt;
+    &lt;TestDesignerEntries /&gt;
+  &lt;/TestDesigners&gt;
+  &lt;TUInfos /&gt;
+&lt;/TUProperties&gt;</Content>
+              <PersistencyGuid>5orski2r0r7a</PersistencyGuid>
+            </EmbeddedTUProperties>
+            <ModellingLibraries>
+              <Files />
+            </ModellingLibraries>
+            <SystemModelingLibraries />
+          </TestUnit>
+        </SubFolders>
+      </TestUnits>
+    </ProjectRoot>
+    <ProjectSettings>
+      <NetGenerateNsNetwork>False</NetGenerateNsNetwork>
+      <NetGenerateNsDatabase>False</NetGenerateNsDatabase>
+      <NetGenerateNsNode>False</NetGenerateNsNode>
+      <NetGenerateNsFrame>False</NetGenerateNsFrame>
+      <BuildDirLocal>
+      </BuildDirLocal>
+      <BuildDirPackAndGo>
+      </BuildDirPackAndGo>
+      <BuildMode>Local</BuildMode>
+      <IncludeSources>False</IncludeSources>
+      <CreateExecutableFolder>False</CreateExecutableFolder>
+      <ExportTraceabilityMatrix>False</ExportTraceabilityMatrix>
+      <GenerateXmlDocumentation>False</GenerateXmlDocumentation>
+      <EncryptCaplFiles>False</EncryptCaplFiles>
+      <TdeBreakOnFailDefault>True</TdeBreakOnFailDefault>
+      <TdePartialPathSeparator>_</TdePartialPathSeparator>
+      <TdeTcAnUseId>False</TdeTcAnUseId>
+      <StateChartAlgorithm>BreadthFirst</StateChartAlgorithm>
+      <TteTcBreakOnFailDefault>True</TteTcBreakOnFailDefault>
+      <TteTsBreakOnFailDefault>True</TteTsBreakOnFailDefault>
+      <IsIdAwareProject>True</IsIdAwareProject>
+      <FullNavigationSupported>True</FullNavigationSupported>
+      <UsesPDULayer>False</UsesPDULayer>
+      <UseAllNetworks>False</UseAllNetworks>
+      <UseOutputDirAsWorkingDir>False</UseOutputDirAsWorkingDir>
+      <NetVersion>Net40</NetVersion>
+      <TdeGenerateDescriptionFromComments>False</TdeGenerateDescriptionFromComments>
+      <IsDiagramIdAwareProject>False</IsDiagramIdAwareProject>
+      <ExportDiagramsAsImage>False</ExportDiagramsAsImage>
+      <ExportTestDesignDocumentation>False</ExportTestDesignDocumentation>
+      <CaplWarnings />
+      <AdditionalLicenseInfos />
+    </ProjectSettings>
+    <SUTEnvironment>
+      <SUTSystemVariables>
+        <FolderName>SUT System Variables</FolderName>
+      </SUTSystemVariables>
+      <DiagnosticTargets>
+        <FolderName>Diagnostic Targets</FolderName>
+      </DiagnosticTargets>
+      <SUTNetworks>
+        <FolderName>SUT Networks</FolderName>
+      </SUTNetworks>
+      <COLibParts>
+        <FolderName>CO Lib Parts</FolderName>
+      </COLibParts>
+      <ComCoDataSource>VcodmFiles</ComCoDataSource>
+      <SourceOfDescriptionFiles>VTestStudio</SourceOfDescriptionFiles>
+      <EnvironmentMakeConfiguration />
+    </SUTEnvironment>
+  </ProjectModelRoot>
+</Project>

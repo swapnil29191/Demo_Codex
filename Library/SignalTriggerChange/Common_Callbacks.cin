@@ -1,0 +1,1008 @@
+/*@!Encoding:1252*/
+
+/**
+*
+* @copyright (C) 2021-2021 Robert Bosch GmbH.\n
+* The reproduction, distribution and utilization of this file as well as
+* the communication of its contents to others without express authorization
+* is prohibited.\n
+* Offenders will be held liable for the payment of damages.\n
+* All rights reserved in the event of the grant of a patent, utility model or design.
+*
+* @file Common_Callbacks.cin
+*
+* @author Swapnil Patel (MS/ECE-PN3-XC)
+* @date 20.03.2023
+* @version 1.0.1
+*
+*          PAW3BAN : Initial Version -> Version 1.0.1 \n
+*
+* @brief This file will contain function for Callback during trigger
+*
+* @details This file will contain function for Callback during trigger
+*
+*
+* @attention THIS IS A COMMON LIBRARY FILE AND MAY ONLY BE EDITED BY THOSE RESPONSIBLE FOR THE LIBRARY.
+*/
+
+variables
+{  
+  //! Variable : callback received
+  dword gChangeResult = 0;
+  
+  //! Variable : Check ID of background check TASK
+  dword gCheckID_VC;
+  
+  //! Variable : Expected value of Signal/System Variable
+  long gExpectedValue; 
+  
+  //! Variable : Expected min value range of Signal/System Variable
+  long gExpectedMinValue;
+  
+  //! Variable : Expected max value range of Signal/System Variable
+  long gExpectedMaxValue;
+  
+  //! Variable : Expected Value Inside Range 
+  enum eChangeExpected gIsValueInsideRangeExpected;
+  
+  //! Variable : Expected value as YES or NO to confirm CANoe should stop or not
+  enum eChangeExpected gStopCanoeOnChange = NO;
+  
+  //! ========== COUNT AND TIME BASED OBSERVATION ==========
+  
+  //! Variable : Change count for observations
+  dword gChangeCount = 0;
+  
+  //! Variable : Expected count for validation
+  dword gExpectedCount = 0;
+  
+  //! Variable : Time window in milliseconds
+  dword gTimeWindowMs = 0;
+  
+  //! Variable : Start timestamp of observation
+  dword gStartTimestamp = 0;
+  
+  //! Variable : First change timestamp
+  dword gFirstChangeTimestamp = 0;
+  
+  //! Variable : Last change timestamp
+  dword gLastChangeTimestamp = 0;
+  
+  //! Variable : User expectation - 1=expect criteria to be met (PASS), 0=expect criteria to fail (PASS)
+  enum eChangeExpected gUserExpectation = YES;
+  
+  //! ========== CYCLE DETECTION SUPPORT ==========
+  
+  //! Variable : Current state (NORMAL or VIOLATED)
+  enum eObservationState gCurrentState = STATE_NORMAL;
+  
+  //! Variable : Complete cycle count (Violation -> Normal transitions)
+  dword gCompleteCycleCount = 0;
+  
+  //! Variable : Expected number of complete cycles
+  dword gExpectedCycles = 0;
+  
+  //! Variable : Last violation end timestamp (when signal returned to normal)
+  dword gLastViolationEndTime = 0;
+  
+  //! Variable : Expected cycle interval in milliseconds (0 = no validation)
+  dword gExpectedCycleIntervalMs = 0;
+  
+  //! Variable : Cycle interval tolerance in milliseconds
+  dword gCycleIntervalToleranceMs = 0;
+  
+  //! Variable : Timestamp when violation started
+  dword gViolationStartTime = 0;
+  
+  //! Variable : Minimum recovery duration in milliseconds (signal must stay normal this long)
+  dword gMinRecoveryDurationMs = 0;
+  
+  //! Variable : Timestamp when recovery started (signal returned to normal)
+  dword gRecoveryStartTime = 0;
+  
+  //! Variable : Flag to stop CANoe when cycle count is reached
+  enum eChangeExpected gStopCanoeOnCycleReached = NO;
+  
+  //! ========== PARALLEL OBSERVATION SUPPORT ==========
+  
+  //! Maximum number of parallel observations supported
+  const dword kMaxParallelObservations = 50;
+  
+  //! Structure to hold observation context
+  struct ObservationContext
+  {
+    dword checkID;                          // Check ID for this observation
+    dword changeResult;                     // Whether change occurred
+    long expectedValue;                     // Expected value (for specific value checks)
+    double expectedMinValue;                // Min value for range checks
+    double expectedMaxValue;                // Max value for range checks
+    dword isValueInsideRangeExpected;       // Range expectation flag
+    dword isActive;                         // 1 if observation is active, 0 otherwise
+    char observedName[256];                 // Name of signal/variable being observed
+  };
+  
+  //! Array to store multiple observation contexts
+  struct ObservationContext gObservations[kMaxParallelObservations];
+  
+  //! Next available observation slot
+  dword gNextObservationSlot = 0;
+}
+
+/// <Normal_Variable>
+/**
+* Callback for chkStart_SignalValueChange
+*
+* @param[out] check - Check ID for background TASK
+*
+*///***************************************************************************** 
+void SVC_CAPL_Callback_Sys(dword check)
+{
+  long timeStemp;
+  
+  timeStemp = ChkQuery_EventTimeStamp(check); 
+  testStepWarning("", "SVC_CAPL_Callback_Sys, Signal/variable value change occurred at time : %d", timeStemp);
+  
+  gChangeResult = 1;
+}
+
+/// <Normal_Variable>
+/**
+* Callback for chkStart_SignalValueChange
+*
+* @param[out] check - Check ID for background TASK
+*
+*///***************************************************************************** 
+void SVC_CAPL_Callback_Sys_Value(dword check)
+{
+  double result;
+  int64 measureValue; // use an array to allow "call-by-reference"; length: 1 element
+  long timeStemp;
+  
+  timeStemp = ChkQuery_EventTimeStamp(check); 
+  result = ChkQuery_EventSignalValue(check, measureValue);
+  
+  if (result < 0 || timeStemp < 0)
+    testStepFail("", "SVC_CAPL_Callback_Sys_Value!, Error ocurred. ErrorCode : %d (SignalValue: %d, timeStemp: %d)", result, measureValue, timeStemp);
+  else
+    testStepWarning("", "SVC_CAPL_Callback_Sys_Value, Signal/variable value change occurred at time : %d, value : %d", timeStemp, measureValue);
+  
+  if (measureValue == gExpectedValue)
+  {
+    gChangeResult = 1;
+  }
+}
+
+
+/// <Normal_Variable>
+/**
+* Callback for ChkStart_MsgSignalValueRangeViolation & ChkStart_MsgSignalValueInvalid 
+*
+* @param[out] check - Check ID for background TASK
+*
+*///***************************************************************************** 
+void SVC_CAPL_Callback_Sys_Value_Range(dword check)
+{
+  double result;
+  int64 measureValue; // use an array to allow "call-by-reference"; length: 1 element
+  long timeStemp;
+  
+  timeStemp = ChkQuery_EventTimeStamp(check); 
+  result = ChkQuery_EventSignalValue(check, measureValue);
+  
+  if (result < 0 || timeStemp < 0)
+    testStepFail("", "SVC_CAPL_Callback_Sys_Value_Range!, Error ocurred. ErrorCode : %d (SystemVariableValue: %d, timeStemp: %d)", result, measureValue, timeStemp);
+  else
+    testStepWarning("", "SVC_CAPL_Callback_Sys_Value_Range, Signal/variable value range violation occurred at time : %d, value : %d", timeStemp, measureValue);
+   
+  if (gExpectedMinValue <= measureValue && gExpectedMaxValue >= measureValue)
+  {
+    if (gIsValueInsideRangeExpected == YES)
+      gChangeResult = 0;
+    else
+      gChangeResult = 1; 
+  }
+  else
+  {
+    if (gIsValueInsideRangeExpected == YES)
+      gChangeResult = 1;
+    else
+      gChangeResult = 0;
+  }
+}
+
+/// <Count_Time_Variable>
+/**
+* Callback for ChkStart_MsgSignalValueRangeViolation & ChkStart_MsgSignalValueInvalid with count and time tracking
+*
+* @param[out] check - Check ID for background TASK
+*
+*///***************************************************************************** 
+void SVC_CAPL_Callback_Sys_Value_Range_CountTime(dword check)
+{
+  double result;
+  int64 measureValue;
+  long timeStemp;
+  dword currentTime;
+  dword changeDetected;
+  dword changeDuration;
+  
+  timeStemp = ChkQuery_EventTimeStamp(check); 
+  result = ChkQuery_EventSignalValue(check, measureValue);
+  currentTime = timeNowInt64() / 100000; // Convert to milliseconds
+  
+  if (result < 0 || timeStemp < 0)
+  {
+    testStepFail("", "SVC_CAPL_Callback_Sys_Value_Range_CountTime!, Error occurred. ErrorCode : %d (SystemVariableValue: %d, timeStemp: %d)", result, measureValue, timeStemp);
+    return;
+  }
+  
+  // Determine if change matches expected criteria
+  changeDetected = 0;
+  if (gExpectedMinValue <= measureValue && gExpectedMaxValue >= measureValue)
+  {
+    if (gIsValueInsideRangeExpected == 0)
+      changeDetected = 1; // Value is inside range, but we expected outside
+  }
+  else
+  {
+    if (gIsValueInsideRangeExpected == 1)
+      changeDetected = 1; // Value is outside range, and we expected this violation
+  }
+  
+  if (changeDetected)
+  {
+    gChangeCount++;
+    
+    // Record first change timestamp
+    if (gChangeCount == 1)
+    {
+      gFirstChangeTimestamp = currentTime;
+      testStepWarning("", "SVC_CAPL_Callback_Sys_Value_Range_CountTime, Change #%d (FIRST) occurred at time : %d ms, value : %d", 
+                      gChangeCount, currentTime, measureValue);
+    }
+    else
+    {
+      // Always update last change timestamp for subsequent changes
+      gLastChangeTimestamp = currentTime;
+      
+      // Calculate time duration from first to current change
+      changeDuration = currentTime - gFirstChangeTimestamp;
+      
+      testStepWarning("", "SVC_CAPL_Callback_Sys_Value_Range_CountTime, Change #%d occurred at time : %d ms, value : %d, Duration from first change: %d ms", 
+                      gChangeCount, currentTime, measureValue, changeDuration);
+      
+      // Check if we've reached the expected count
+      if (gChangeCount >= gExpectedCount)
+      {
+        // Validate time window from FIRST to LAST change
+        dword criteriaMetWithinTime;
+        criteriaMetWithinTime = (gTimeWindowMs == 0 || changeDuration <= gTimeWindowMs);
+        
+        if (criteriaMetWithinTime)
+        {
+          // Count+Time criteria MET
+          if (gUserExpectation == YES)
+          {
+            gChangeResult = 1; // User expected this PASS
+            testStepWarning("", "PASSED - Expected count (%d) reached within time window! Duration: %d ms (limit: %d ms) - User expectation: MET (PASS)", 
+                            gExpectedCount, changeDuration, gTimeWindowMs);
+          }
+          else
+          {
+            gChangeResult = 0; // User did NOT expect this FAIL
+            testStepWarning("", "FAILED - Expected count (%d) reached within time window! Duration: %d ms (limit: %d ms) - User expectation: NOT MET (FAIL)", 
+                            gExpectedCount, changeDuration, gTimeWindowMs);
+          }
+          
+          /////////////////
+          if (gStopCanoeOnChange == YES)
+          {
+            testStepFail("Error", "Forcefully stopping CANoe based on value change occured from library");
+            stop();
+          }
+        }
+        else
+        {
+          // Count reached but time EXCEEDED
+          if (gUserExpectation == YES)
+          {
+            gChangeResult = 0; // User expected criteria to be met, but time exceeded FAIL
+            testStepWarning("", "FAILED - Expected count (%d) reached but time window EXCEEDED! Duration: %d ms (limit: %d ms) - User expectation: NOT MET (FAIL)", 
+                            gExpectedCount, changeDuration, gTimeWindowMs);
+          }
+          else
+          {
+            gChangeResult = 1; // User expected criteria to fail, and it did PASS
+            testStepWarning("", "PASSED - Expected count (%d) reached but time window EXCEEDED! Duration: %d ms (limit: %d ms) - User expectation: MET (PASS)", 
+                            gExpectedCount, changeDuration, gTimeWindowMs);
+          }
+        }
+      }
+    }
+  }
+}
+
+/// <Normal_Signal>
+/**
+* Callback for chkStart_SignalValueChange
+*
+* @param[out] check - Check ID for background TASK
+*
+*///***************************************************************************** 
+void SVC_CAPL_Callback_Signal(dword check)
+{  
+  long timeStemp;
+  
+  timeStemp = ChkQuery_EventTimeStamp(check); 
+  testStepWarning("", "SVC_CAPL_Callback_Signal, Signal/variable value change occurred at time : %d", timeStemp);
+  
+  gChangeResult = 1;
+}
+
+/// <Normal_Signal>
+/**
+* Callback for chkStart_SignalValueChange
+*
+* @param[out] check - Check ID for background TASK
+*
+*///***************************************************************************** 
+void SVC_CAPL_Callback_Signal_Value(dword check)
+{
+  double result;
+  int64 measureValue; // use an array to allow "call-by-reference"; length: 1 element
+  long timeStemp;
+  
+  timeStemp = ChkQuery_EventTimeStamp(check);  
+  result = ChkQuery_EventSignalValue(check, measureValue);
+  
+  if (result < 0 || timeStemp < 0)
+    testStepFail("", "SVC_CAPL_Callback_Signal_Value!, Error ocurred. ErrorCode : %d (SignalValue: %d, timeStemp: %d)", result, measureValue, timeStemp);
+  else
+    testStepWarning("", "SVC_CAPL_Callback_Signal_Value, Signal/variable value change occurred for at time : %d", timeStemp);
+  
+  if (measureValue == gExpectedValue)
+  {
+    gChangeResult = 1;
+  }
+}
+
+/// <Normal_Signal>
+/**
+* Callback for ChkStart_MsgSignalValueRangeViolation & ChkStart_MsgSignalValueInvalid 
+*
+* @param[out] check - Check ID for background TASK
+*
+*///***************************************************************************** 
+void SVC_CAPL_Callback_Signal_Value_Range(dword check)
+{
+  double result;
+  int64 measureValue; // use an array to allow "call-by-reference"; length: 1 element
+  long timeStemp;
+  
+  timeStemp = ChkQuery_EventTimeStamp(check); 
+  result = ChkQuery_EventSignalValue(check, measureValue);
+  
+  if (result < 0 || timeStemp < 0)
+    testStepFail("", "SVC_CAPL_Callback_Signal_Value_Range!, Error ocurred. ErrorCode : %d (SignalValue: %d, timeStemp: %d)", result, measureValue, timeStemp);
+  else
+    testStepWarning("", "SVC_CAPL_Callback_Signal_Value_Range, Signal/variable value range violation occurred at time : %d, value : %d", timeStemp, measureValue);
+   
+  if (gExpectedMinValue <= measureValue && gExpectedMaxValue >= measureValue)
+  {
+    if (gIsValueInsideRangeExpected == 1)
+      gChangeResult = 0;
+    else
+      gChangeResult = 1; 
+  }
+  else
+  {
+    if (gIsValueInsideRangeExpected == 1)
+      gChangeResult = 1;
+    else
+      gChangeResult = 0;
+  }
+}
+
+/// <Count_Time_Signal>
+/**
+* Callback for ChkStart_MsgSignalValueRangeViolation & ChkStart_MsgSignalValueInvalid with count and time tracking
+*
+* @param[out] check - Check ID for background TASK
+*
+*///***************************************************************************** 
+void SVC_CAPL_Callback_Signal_Value_Range_CountTime(dword check)
+{
+  double result;
+  int64 measureValue;
+  long timeStemp;
+  dword currentTime;
+  dword changeDetected;
+  dword changeDuration;
+  
+  timeStemp = ChkQuery_EventTimeStamp(check); 
+  result = ChkQuery_EventSignalValue(check, measureValue);
+  currentTime = timeNowInt64() / 100000; // Convert to milliseconds
+  
+  if (result < 0 || timeStemp < 0)
+  {
+    testStepFail("", "SVC_CAPL_Callback_Signal_Value_Range_CountTime!, Error occurred. ErrorCode : %d (SignalValue: %d, timeStemp: %d)", result, measureValue, timeStemp);
+    return;
+  }
+  
+  // Determine if change matches expected criteria
+  changeDetected = 0;
+  if (gExpectedMinValue <= measureValue && gExpectedMaxValue >= measureValue)
+  {
+    if (gIsValueInsideRangeExpected == 0)
+      changeDetected = 1; // Value is inside range, but we expected outside
+  }
+  else
+  {
+    if (gIsValueInsideRangeExpected == 1)
+      changeDetected = 1; // Value is outside range, and we expected this violation
+  }
+  
+  if (changeDetected)
+  {
+    gChangeCount++;
+    
+    // Record first change timestamp
+    if (gChangeCount == 1)
+    {
+      gFirstChangeTimestamp = currentTime;
+      testStepWarning("", "SVC_CAPL_Callback_Signal_Value_Range_CountTime, Change #%d (FIRST) occurred at time : %d ms, value : %d", 
+                      gChangeCount, currentTime, measureValue);
+    }
+    else
+    {
+      // Always update last change timestamp for subsequent changes
+      gLastChangeTimestamp = currentTime;
+      
+      // Calculate time duration from first to current change
+      changeDuration = currentTime - gFirstChangeTimestamp;
+      
+      testStepWarning("", "SVC_CAPL_Callback_Signal_Value_Range_CountTime, Change #%d occurred at time : %d ms, value : %d, Duration from first change: %d ms", 
+                      gChangeCount, currentTime, measureValue, changeDuration);
+      
+      // Check if we've reached the expected count
+      if (gChangeCount >= gExpectedCount)
+      {
+        // Validate time window from FIRST to LAST change
+        dword criteriaMetWithinTime;
+        criteriaMetWithinTime = (gTimeWindowMs == 0 || changeDuration <= gTimeWindowMs);
+        
+        if (criteriaMetWithinTime)
+        {
+          // Count+Time criteria MET
+          if (gUserExpectation == YES)
+          {
+            gChangeResult = 1; // User expected this PASS
+            testStepWarning("", "PASSED - Expected count (%d) reached within time window! Duration: %d ms (limit: %d ms) - User expectation: MET (PASS)", 
+                            gExpectedCount, changeDuration, gTimeWindowMs);
+          }
+          else
+          {
+            gChangeResult = 0; // User did NOT expect this FAIL
+            testStepWarning("", "FAILED - Expected count (%d) reached within time window! Duration: %d ms (limit: %d ms) - User expectation: NOT MET (FAIL)", 
+                            gExpectedCount, changeDuration, gTimeWindowMs);
+          }
+          
+          /////////////////
+          if (gStopCanoeOnChange == YES)
+          {
+            testStepFail("Error", "Forcefully stopping CANoe based on value change occured from library");
+            stop();
+          }
+        }
+        else
+        {
+          // Count reached but time EXCEEDED
+          if (gUserExpectation == YES)
+          {
+            gChangeResult = 0; // User expected criteria to be met, but time exceeded FAIL
+            testStepWarning("", "FAILED - Expected count (%d) reached but time window EXCEEDED! Duration: %d ms (limit: %d ms) - User expectation: NOT MET (FAIL)", 
+                            gExpectedCount, changeDuration, gTimeWindowMs);
+          }
+          else
+          {
+            gChangeResult = 1; // User expected criteria to fail, and it did PASS
+            testStepWarning("", "PASSED - Expected count (%d) reached but time window EXCEEDED! Duration: %d ms (limit: %d ms) - User expectation: MET (PASS)", 
+                            gExpectedCount, changeDuration, gTimeWindowMs);
+          }
+        }
+      }
+    }
+  }
+}
+
+//! ========== CYCLE DETECTION CALLBACKS ==========
+
+/// <CycleDetection_Variable>
+/**
+* Callback for cycle detection - tracks complete violation→recovery cycles for system variables
+*
+* @param[out] check - Check ID for background TASK
+*
+* @details Detects state transitions (NORMAL ↔ VIOLATED) and counts complete cycles.
+*          A complete cycle = violation occurs → signal returns to normal range.
+*          Optionally validates cycle intervals and stops CANoe when threshold is reached.
+*
+*///***************************************************************************** 
+void SVC_CAPL_Callback_Sys_Value_Range_CycleDetection(dword check)
+{
+  double result;
+  int64 measureValue;
+  long timeStemp;
+  dword currentTime;
+  dword isValueInViolation;
+  dword cycleInterval;
+  
+  timeStemp = ChkQuery_EventTimeStamp(check); 
+  result = ChkQuery_EventSignalValue(check, measureValue);
+  currentTime = timeNowInt64() / 100000; // Convert to milliseconds
+  
+  if (result < 0 || timeStemp < 0)
+  {
+    testStepFail("", "SVC_CAPL_Callback_Sys_Value_Range_CycleDetection!, Error occurred. ErrorCode : %d (SystemVariableValue: %d, timeStemp: %d)", result, measureValue, timeStemp);
+    return;
+  }
+  
+  // Determine if current value is in violation
+  isValueInViolation = 0;
+  if (gExpectedMinValue <= measureValue && gExpectedMaxValue >= measureValue)
+  {
+    // Value is inside range
+    if (gIsValueInsideRangeExpected == NO)
+      isValueInViolation = 1; // We're looking for values OUTSIDE range, so this is NOT a violation
+    else
+      isValueInViolation = 0; // We're looking for values INSIDE range, so this IS what we want (not violation)
+  }
+  else
+  {
+    // Value is outside range
+    if (gIsValueInsideRangeExpected == YES)
+      isValueInViolation = 1; // We're looking for values INSIDE range, so this IS a violation
+    else
+      isValueInViolation = 0; // We're looking for values OUTSIDE range, so this is what we want (not violation)
+  }
+  
+  // State machine for cycle detection
+  if (isValueInViolation)
+  {
+    // Currently in VIOLATION state
+    if (gCurrentState == STATE_NORMAL)
+    {
+      // Transition: NORMAL VIOLATED
+      gCurrentState = STATE_VIOLATED;
+      gViolationStartTime = currentTime;
+      
+      testStepWarning("", "SVC_CAPL_Callback_Sys_CycleDetection, VIOLATION STARTED at %d ms, value: %d (Range: %d...%d)", 
+                      currentTime, measureValue, gExpectedMinValue, gExpectedMaxValue);
+    }
+    // else: already in violation, continue
+  }
+  else
+  {
+    // Currently in NORMAL range
+    if (gCurrentState == STATE_VIOLATED)
+    {
+      // Transition: VIOLATED NORMAL (COMPLETE CYCLE!)
+      gCurrentState = STATE_NORMAL;
+      gRecoveryStartTime = currentTime;
+      
+      // Increment cycle count
+      gCompleteCycleCount++;
+      
+      // Calculate cycle interval (if this isn't the first cycle)
+      if (gCompleteCycleCount > 1 && gLastViolationEndTime > 0)
+      {
+        cycleInterval = gViolationStartTime - gLastViolationEndTime;
+        
+        testStepWarning("", "SVC_CAPL_Callback_Sys_CycleDetection, CYCLE #%d COMPLETED at %d ms, value: %d, Cycle interval: %d ms", 
+                        gCompleteCycleCount, currentTime, measureValue, cycleInterval);
+        
+        // Validate cycle interval if specified
+        if (gExpectedCycleIntervalMs > 0)
+        {
+          dword intervalDiff;
+          if (cycleInterval > gExpectedCycleIntervalMs)
+            intervalDiff = cycleInterval - gExpectedCycleIntervalMs;
+          else
+            intervalDiff = gExpectedCycleIntervalMs - cycleInterval;
+          
+          if (intervalDiff > gCycleIntervalToleranceMs)
+          {
+            testStepWarning("", "WARNING: Cycle interval %d ms is outside tolerance! Expected: %d ms ± %d ms", 
+                            cycleInterval, gExpectedCycleIntervalMs, gCycleIntervalToleranceMs);
+          }
+        }
+      }
+      else
+      {
+        testStepWarning("", "SVC_CAPL_Callback_Sys_CycleDetection, CYCLE #%d COMPLETED (FIRST) at %d ms, value: %d", 
+                        gCompleteCycleCount, currentTime, measureValue);
+      }
+      
+      gLastViolationEndTime = currentTime;
+      
+      // Check if we've reached expected cycle count
+      if (gExpectedCycles > 0 && gCompleteCycleCount >= gExpectedCycles)
+      {
+        if (gUserExpectation == YES)
+        {
+          gChangeResult = 1; // User expected cycles to occur - PASS
+          testStepWarning("", "PASSED - Expected cycle count (%d) reached! User expectation: MET (PASS)", gExpectedCycles);
+        }
+        else
+        {
+          gChangeResult = 0; // User did NOT expect cycles to occur - FAIL
+          testStepWarning("", "FAILED - Expected cycle count (%d) reached! User expectation: NOT MET (FAIL)", gExpectedCycles);
+        }
+        
+        // Stop CANoe if configured
+        if (gStopCanoeOnCycleReached == YES)
+        {
+          testStepFail("Error", "Forcefully stopping CANoe - Cycle count threshold reached (%d cycles detected)", gCompleteCycleCount);
+          stop();
+        }
+      }
+    }
+    // else: already in normal, continue
+  }
+}
+
+/// <CycleDetection_Signal>
+/**
+* Callback for cycle detection - tracks complete violation→recovery cycles for signals
+*
+* @param[out] check - Check ID for background TASK
+*
+* @details Detects state transitions (NORMAL ↔ VIOLATED) and counts complete cycles.
+*          A complete cycle = violation occurs → signal returns to normal range.
+*          Optionally validates cycle intervals and stops CANoe when threshold is reached.
+*
+*///***************************************************************************** 
+void SVC_CAPL_Callback_Signal_Value_Range_CycleDetection(dword check)
+{
+  double result;
+  int64 measureValue;
+  long timeStemp;
+  dword currentTime;
+  dword isValueInViolation;
+  dword cycleInterval;
+  
+  timeStemp = ChkQuery_EventTimeStamp(check); 
+  result = ChkQuery_EventSignalValue(check, measureValue);
+  currentTime = timeNowInt64() / 100000; // Convert to milliseconds
+  
+  if (result < 0 || timeStemp < 0)
+  {
+    testStepFail("", "SVC_CAPL_Callback_Signal_Value_Range_CycleDetection!, Error occurred. ErrorCode : %d (SignalValue: %d, timeStemp: %d)", result, measureValue, timeStemp);
+    return;
+  }
+  
+  // Determine if current value is in violation
+  isValueInViolation = 0;
+  if (gExpectedMinValue <= measureValue && gExpectedMaxValue >= measureValue)
+  {
+    // Value is inside range
+    if (gIsValueInsideRangeExpected == NO)
+      isValueInViolation = 1; // We're looking for values OUTSIDE range, so this is NOT a violation
+    else
+      isValueInViolation = 0; // We're looking for values INSIDE range, so this IS what we want (not violation)
+  }
+  else
+  {
+    // Value is outside range
+    if (gIsValueInsideRangeExpected == YES)
+      isValueInViolation = 1; // We're looking for values INSIDE range, so this IS a violation
+    else
+      isValueInViolation = 0; // We're looking for values OUTSIDE range, so this is what we want (not violation)
+  }
+  
+  // State machine for cycle detection
+  if (isValueInViolation)
+  {
+    // Currently in VIOLATION state
+    if (gCurrentState == STATE_NORMAL)
+    {
+      // Transition: NORMAL VIOLATED
+      gCurrentState = STATE_VIOLATED;
+      gViolationStartTime = currentTime;
+      
+      testStepWarning("", "SVC_CAPL_Callback_Signal_CycleDetection, VIOLATION STARTED at %d ms, value: %d (Range: %d...%d)", 
+                      currentTime, measureValue, gExpectedMinValue, gExpectedMaxValue);
+    }
+    // else: already in violation, continue
+  }
+  else
+  {
+    // Currently in NORMAL range
+    if (gCurrentState == STATE_VIOLATED)
+    {
+      // Transition: VIOLATED NORMAL (COMPLETE CYCLE!)
+      gCurrentState = STATE_NORMAL;
+      gRecoveryStartTime = currentTime;
+      
+      // Increment cycle count
+      gCompleteCycleCount++;
+      
+      // Calculate cycle interval (if this isn't the first cycle)
+      if (gCompleteCycleCount > 1 && gLastViolationEndTime > 0)
+      {
+        cycleInterval = gViolationStartTime - gLastViolationEndTime;
+        
+        testStepWarning("", "SVC_CAPL_Callback_Signal_CycleDetection, CYCLE #%d COMPLETED at %d ms, value: %d, Cycle interval: %d ms", 
+                        gCompleteCycleCount, currentTime, measureValue, cycleInterval);
+        
+        // Validate cycle interval if specified
+        if (gExpectedCycleIntervalMs > 0)
+        {
+          dword intervalDiff;
+          if (cycleInterval > gExpectedCycleIntervalMs)
+            intervalDiff = cycleInterval - gExpectedCycleIntervalMs;
+          else
+            intervalDiff = gExpectedCycleIntervalMs - cycleInterval;
+          
+          if (intervalDiff > gCycleIntervalToleranceMs)
+          {
+            testStepWarning("", "WARNING: Cycle interval %d ms is outside tolerance! Expected: %d ms ± %d ms", 
+                            cycleInterval, gExpectedCycleIntervalMs, gCycleIntervalToleranceMs);
+          }
+        }
+      }
+      else
+      {
+        testStepWarning("", "SVC_CAPL_Callback_Signal_CycleDetection, CYCLE #%d COMPLETED (FIRST) at %d ms, value: %d", 
+                        gCompleteCycleCount, currentTime, measureValue);
+      }
+      
+      gLastViolationEndTime = currentTime;
+      
+      // Check if we've reached expected cycle count
+      if (gExpectedCycles > 0 && gCompleteCycleCount >= gExpectedCycles)
+      {
+        if (gUserExpectation == YES)
+        {
+          gChangeResult = 1; // User expected cycles to occur - PASS
+          testStepWarning("", "PASSED - Expected cycle count (%d) reached! User expectation: MET (PASS)", gExpectedCycles);
+        }
+        else
+        {
+          gChangeResult = 0; // User did NOT expect cycles to occur - FAIL
+          testStepWarning("", "FAILED - Expected cycle count (%d) reached! User expectation: NOT MET (FAIL)", gExpectedCycles);
+        }
+        
+        // Stop CANoe if configured
+        if (gStopCanoeOnCycleReached == YES)
+        {
+          testStepFail("Error", "Forcefully stopping CANoe - Cycle count threshold reached (%d cycles detected)", gCompleteCycleCount);
+          stop();
+        }
+      }
+    }
+    // else: already in normal, continue
+  }
+}
+
+//! ========== PARALLEL OBSERVATION CALLBACKS ==========
+
+/// <ParallelObservation_Variable>
+/**
+* Callback for parallel observation - chkStart_SignalValueChange
+*
+* @param[out] check - Check ID for background TASK
+*
+*///***************************************************************************** 
+void SVC_CAPL_Callback_Sys_Parallel(dword check)
+{
+  long timeStemp;
+  dword i;
+  
+  // Find the observation context for this check ID
+  for (i = 0; i < kMaxParallelObservations; i++)
+  {
+    if (gObservations[i].isActive && gObservations[i].checkID == check)
+    {
+      timeStemp = ChkQuery_EventTimeStamp(check); 
+      testStepWarning("", "SVC_CAPL_Callback_Sys_Parallel [%s], Signal/variable value change occurred at time : %d", gObservations[i].observedName, timeStemp);
+      
+      gObservations[i].changeResult = 1;
+      break;
+    }
+  }
+}
+
+/// <ParallelObservation_Variable>
+/**
+* Callback for parallel observation - chkStart_SignalValueChange with specific value
+*
+* @param[out] check - Check ID for background TASK
+*
+*///***************************************************************************** 
+void SVC_CAPL_Callback_Sys_Value_Parallel(dword check)
+{
+  double result;
+  int64 measureValue;
+  long timeStemp;
+  dword i;
+  
+  // Find the observation context for this check ID
+  for (i = 0; i < kMaxParallelObservations; i++)
+  {
+    if (gObservations[i].isActive && gObservations[i].checkID == check)
+    {
+      timeStemp = ChkQuery_EventTimeStamp(check); 
+      result = ChkQuery_EventSignalValue(check, measureValue);
+      
+      if (result < 0 || timeStemp < 0)
+        testStepFail("", "SVC_CAPL_Callback_Sys_Value_Parallel [%s]!, Error ocurred. ErrorCode : %d (SignalValue: %d, timeStemp: %d)", gObservations[i].observedName, result, measureValue, timeStemp);
+      else
+        testStepWarning("", "SVC_CAPL_Callback_Sys_Value_Parallel [%s], Signal/variable value change occurred at time : %d, value : %d", gObservations[i].observedName, timeStemp, measureValue);
+      
+      if (measureValue == gObservations[i].expectedValue)
+      {
+        gObservations[i].changeResult = 1;
+      }
+      break;
+    }
+  }
+}
+
+/// <ParallelObservation_Variable>
+/**
+* Callback for parallel observation - ChkStart_MsgSignalValueRangeViolation & ChkStart_MsgSignalValueInvalid
+*
+* @param[out] check - Check ID for background TASK
+*
+*///***************************************************************************** 
+void SVC_CAPL_Callback_Sys_Value_Range_Parallel(dword check)
+{
+  double result;
+  int64 measureValue;
+  long timeStemp;
+  dword i;
+  
+  // Find the observation context for this check ID
+  for (i = 0; i < kMaxParallelObservations; i++)
+  {
+    if (gObservations[i].isActive && gObservations[i].checkID == check)
+    {
+      timeStemp = ChkQuery_EventTimeStamp(check); 
+      result = ChkQuery_EventSignalValue(check, measureValue);
+      
+      if (result < 0 || timeStemp < 0)
+        testStepFail("", "SVC_CAPL_Callback_Sys_Value_Range_Parallel [%s]!, Error ocurred. ErrorCode : %d (SystemVariableValue: %d, timeStemp: %d)", gObservations[i].observedName, result, measureValue, timeStemp);
+      else
+        testStepWarning("", "SVC_CAPL_Callback_Sys_Value_Range_Parallel [%s], Signal/variable value range violation occurred at time : %d, value : %d", gObservations[i].observedName, timeStemp, measureValue);
+       
+      if (gObservations[i].expectedMinValue <= measureValue && gObservations[i].expectedMaxValue >= measureValue)
+      {
+        if (gObservations[i].isValueInsideRangeExpected == 1)
+          gObservations[i].changeResult = 0;
+        else
+          gObservations[i].changeResult = 1; 
+      }
+      else
+      {
+        if (gObservations[i].isValueInsideRangeExpected == 1)
+          gObservations[i].changeResult = 1;
+        else
+          gObservations[i].changeResult = 0;
+      }
+      break;
+    }
+  }
+}
+
+/// <ParallelObservation_Signal>
+/**
+* Callback for parallel observation - chkStart_SignalValueChange
+*
+* @param[out] check - Check ID for background TASK
+*
+*///***************************************************************************** 
+void SVC_CAPL_Callback_Signal_Parallel(dword check)
+{
+  long timeStemp;
+  dword i;
+  
+  // Find the observation context for this check ID
+  for (i = 0; i < kMaxParallelObservations; i++)
+  {
+    if (gObservations[i].isActive && gObservations[i].checkID == check)
+    {
+      timeStemp = ChkQuery_EventTimeStamp(check); 
+      testStepWarning("", "SVC_CAPL_Callback_Signal_Parallel [%s], Signal/variable value change occurred at time : %d", gObservations[i].observedName, timeStemp);
+      
+      gObservations[i].changeResult = 1;
+      break;
+    }
+  }
+}
+
+/// <ParallelObservation_Signal>
+/**
+* Callback for parallel observation - chkStart_SignalValueChange with specific value
+*
+* @param[out] check - Check ID for background TASK
+*
+*///***************************************************************************** 
+void SVC_CAPL_Callback_Signal_Value_Parallel(dword check)
+{
+  double result;
+  int64 measureValue;
+  long timeStemp;
+  dword i;
+  
+  // Find the observation context for this check ID
+  for (i = 0; i < kMaxParallelObservations; i++)
+  {
+    if (gObservations[i].isActive && gObservations[i].checkID == check)
+    {
+      timeStemp = ChkQuery_EventTimeStamp(check);  
+      result = ChkQuery_EventSignalValue(check, measureValue);
+      
+      if (result < 0 || timeStemp < 0)
+        testStepFail("", "SVC_CAPL_Callback_Signal_Value_Parallel [%s]!, Error ocurred. ErrorCode : %d (SignalValue: %d, timeStemp: %d)", gObservations[i].observedName, result, measureValue, timeStemp);
+      else
+        testStepWarning("", "SVC_CAPL_Callback_Signal_Value_Parallel [%s], Signal/variable value change occurred for at time : %d", gObservations[i].observedName, timeStemp);
+      
+      if (measureValue == gObservations[i].expectedValue)
+      {
+        gObservations[i].changeResult = 1;
+      }
+      break;
+    }
+  }
+}
+
+/// <ParallelObservation_Signal>
+/**
+* Callback for parallel observation - ChkStart_MsgSignalValueRangeViolation & ChkStart_MsgSignalValueInvalid
+*
+* @param[out] check - Check ID for background TASK
+*
+*///***************************************************************************** 
+void SVC_CAPL_Callback_Signal_Value_Range_Parallel(dword check)
+{
+  double result;
+  int64 measureValue;
+  long timeStemp;
+  dword i;
+  
+  // Find the observation context for this check ID
+  for (i = 0; i < kMaxParallelObservations; i++)
+  {
+    if (gObservations[i].isActive && gObservations[i].checkID == check)
+    {
+      timeStemp = ChkQuery_EventTimeStamp(check); 
+      result = ChkQuery_EventSignalValue(check, measureValue);
+      
+      if (result < 0 || timeStemp < 0)
+        testStepFail("", "SVC_CAPL_Callback_Signal_Value_Range_Parallel [%s]!, Error ocurred. ErrorCode : %d (SignalValue: %d, timeStemp: %d)", gObservations[i].observedName, result, measureValue, timeStemp);
+      else
+        testStepWarning("", "SVC_CAPL_Callback_Signal_Value_Range_Parallel [%s], Signal/variable value range violation occurred at time : %d, value : %d", gObservations[i].observedName, timeStemp, measureValue);
+       
+      if (gObservations[i].expectedMinValue <= measureValue && gObservations[i].expectedMaxValue >= measureValue)
+      {
+        if (gObservations[i].isValueInsideRangeExpected == 1)
+          gObservations[i].changeResult = 0;
+        else
+          gObservations[i].changeResult = 1; 
+      }
+      else
+      {
+        if (gObservations[i].isValueInsideRangeExpected == 1)
+          gObservations[i].changeResult = 1;
+        else
+          gObservations[i].changeResult = 0;
+      }
+      break;
+    }
+  }
+}
+
+
+
+

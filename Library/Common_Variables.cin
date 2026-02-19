@@ -1,0 +1,89 @@
+/*@!Encoding:1252*/
+
+// Version 1.3 - Added component cooldown safety constants
+
+variables
+{
+  //! Enum : Enable Disable value
+  enum eEnableDisable
+  {
+    Enable = 1,     //!< 1 
+    Disable = 0     //!< 0      
+  };
+  
+  //! Enum : Boolean value 
+  enum eBoolean 
+  {
+    TRUE  = 1,    //!< 1
+    FALSE = 0     //!< 0
+  };
+  
+  //! Enum : Verdict behavior in Test report
+  enum eBahaviour
+  {    
+    VerdictExpected = 0,     //!< 0 = Default behavior, entry in test report and setting of the verdict to "fail"    
+    VerdictNotExpected = 1   //!< 1 = Only an entry in the test report is made, the verdict remains unchanged
+  };
+  
+  //! Enum : Value change Expected status
+  enum eChangeExpected
+  {
+    NO = 0,  //!< 0
+    YES = 1  //!< 1
+  };
+  
+  //! Enum : Value change Expected status
+  enum eObservationState
+  {
+    STATE_NORMAL = 0,  //!< 0
+    STATE_VIOLATED = 1  //!< 1
+  };
+  
+  //! Enum : Test equipment selection
+  enum eTestEquipment
+  {
+    eNone  = 0,         //!< 0
+    eLoad = 1,         //!< 1
+    PowerSupply = 2,   //!< 2
+    DMM = 3            //!< 3   
+  };
+  
+  //! Enum : true or false state
+  enum def_truefalse
+  {
+    def_FALSE = 0,
+    def_TRUE = 1
+  };
+  
+  //! Enum : def_verdict
+  enum def_verdict
+  {
+    def_PASS = 0,
+    def_FAIL = 1
+  }; 
+  
+  //! Enum : def_OnOff
+  enum def_OnOff
+  {
+    def_Off = 0,
+    def_On  = 1
+  };
+
+  ///////////////// Component Cooldown Configuration //////////////////////////////////
+  
+  //! Variable : Maximum allowed cooldown time (5 minutes) - prevents excessive wait times
+  const dword gMaxAllowedCooldownTime_ms = 300000;  // 300 seconds = 5 minutes
+  
+  //! Variable : Minimum cooldown time (1 second) - ensures some cooling for any current flow
+  const dword gMinCooldownTime_ms = 1000;           // 1 second
+  
+  //! Variable : Default cooldown time for invalid calculations
+  const dword gDefaultCooldownTime_ms = 30000;      // 30 seconds default
+  
+  //! Variable : Critical current duration threshold (10 minutes) - beyond this is potentially damaging
+  const dword gCriticalCurrentDuration_ms = 600000; // 10 minutes
+  
+  //! Variable : Warning current duration threshold (3 minutes) - generates warnings
+  const dword gWarningCurrentDuration_ms = 180000;  // 3 minutes
+
+}

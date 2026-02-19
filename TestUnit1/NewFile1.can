@@ -1,0 +1,13 @@
+﻿/*@!Encoding:65001*/
+includes
+{
+  
+  #include "..\Library\Common_Variables.cin"
+  #include "..\Library\SignalTriggerChange\Lib_ValueChange_Control.cin"
+}
+
+variables
+{
+  
+}
+

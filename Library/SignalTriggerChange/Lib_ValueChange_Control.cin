@@ -1,0 +1,2238 @@
+/*@!Encoding:1252*/
+
+/**
+*
+* @copyright (C) 2021-2021 Robert Bosch GmbH.\n
+* The reproduction, distribution and utilization of this file as well as
+* the communication of its contents to others without express authorization
+* is prohibited.\n
+* Offenders will be held liable for the payment of damages.\n
+* All rights reserved in the event of the grant of a patent, utility model or design.
+*
+* @file Lib_ValueChange_Control.cin
+*
+* @author Swapnil Patel (MS/ECE-PN3-XC)
+* @date 20.03.2023
+* @version 1.0.2
+*
+*          PAW3BAN : Initial Version -> Version 1.0.1 \n
+*          PAW3BAN : Bug fixed -> Version 1.0.2 \n
+*
+ * @brief This file contains functions to observe changes in Signals or System Variables.
+*
+ * @details Provides APIs to start and stop background observation of value changes or range violations
+ *          for system variables and signals, as well as to validate if expected changes occurred. (Total Function : 12)
+ *
+ * @attention THIS IS A COMMON LIBRARY FILE AND MAY ONLY BE EDITED BY THOSE RESPONSIBLE FOR THE LIBRARY.
+ */
+
+includes
+{ 
+  #include "Common_Callbacks.cin"
+}
+
+variables
+{
+
+}
+
+/// <StartObervation/SysInt>
+/**
+ * @brief Starts background observation for value changes of an integer system variable.
+*
+* @param[in] sysVarName - Int dataType System Variable Name
+*
+ * @return None
+ * @details Initiates monitoring for any value change of the specified integer system variable.
+ *          If the observation cannot be started (e.g., variable not available or callback missing),
+ *          a test step failure is reported.
+ *
+* @verdict Failed to start background observation \n
+*          Passed Successfully started background observation
+*///***************************************************************************** 
+export void Lib_SVC_StartObservation(sysvarInt* sysVarName)
+{
+  #pragma warning(disable: 2038)
+  gChangeResult = 0;
+  
+  // checks that there is no change of the value of the signal
+  gCheckID_VC = chkStart_SignalValueChange (sysVarName, "SVC_CAPL_Callback_Sys");
+  
+  if (!gCheckID_VC)
+  {
+    testStepFail("", "System Variable Value change could not start, System Variable not available OR CAPL callback does not exist");
+  }
+  
+  testAddCondition(gCheckID_VC, VerdictNotExpected); 
+  testStep("Observation", "Background check of System variable : \" %s \" started", sysVarName.name);
+}
+
+/// <StartObervation/SysInt>
+/**
+ * @brief Starts background observation for a specific value change of an integer system variable.
+*
+* @param[in] sysVarName - Int dataType System Variable Name
+* @param[in] variableValue - Expected variable value change
+*
+ * @return None
+ *
+ * @details Initiates monitoring for a specific value change of the given integer system variable.
+ *          If the observation cannot be started, a test step failure is reported.
+ *
+* @verdict Failed to start background observation \n
+*          Passed Successfully started background observation
+*///***************************************************************************** 
+export void Lib_SVC_StartObservation(sysvarInt* sysVarName, long variableValue)
+{
+  #pragma warning(disable: 2038)
+  gExpectedValue = variableValue;
+  gChangeResult = 0;
+  
+  // checks that there is no change of the value of the signal
+  gCheckID_VC = chkStart_SignalValueChange (sysVarName, "SVC_CAPL_Callback_Sys_Value");
+  
+  if (!gCheckID_VC)
+  {
+    testStepFail("", "System Variable Value change could not start, System Variable not available OR CAPL callback does not exist");
+  }
+  
+  testAddCondition(gCheckID_VC, VerdictNotExpected);
+  testStep("Observation", "Background check of System variable : \" %s \" started for value %d", sysVarName.name, variableValue);
+}
+
+/// <StartObervation/SysInt>
+/**
+ * @brief Starts background observation for an integer system variable to check if its value is inside or outside a specified range.
+* An event will be generated, if the value of system variable is inside/outside the given value range.
+*
+* @param[in] sysVarName - Int dataType System Variable Name
+* @param[in] aMinValue - aMinValue <= aMaxValue
+* @param[in] aMaxValue - aMinValue <= aMaxValue
+ * @param[in] IsValueInsideRangeExpected YES if value should be inside the range, NO if outside.
+*
+ * @return None
+ *
+ * @details Initiates monitoring for the system variable to check if its value enters or leaves the specified range.
+ *          If the minimum value is greater than the maximum, a test step failure is reported.
+ *          If the observation cannot be started, a test step failure is reported.
+ *
+* @verdict Failed to start background observation \n
+*          Passed Successfully started background observation
+*///***************************************************************************** 
+export void Lib_SVC_StartObservation(sysvarInt* sysVarName, double aMinValue, double aMaxValue, enum eChangeExpected IsValueInsideRangeExpected)
+{
+  #pragma warning(disable: 2038)
+  gExpectedMinValue = aMinValue;
+  gExpectedMaxValue = aMaxValue;
+  gIsValueInsideRangeExpected = IsValueInsideRangeExpected;
+  gChangeResult = 0;
+  
+  if (aMinValue > aMaxValue)
+  {
+    testStepFail("WrongInput", "Lib_SVC_StartObservation()! should be aMinValue (%ld) <= aMaxValue (%ld)", aMinValue, aMaxValue);
+    return;
+  }
+  
+  // checks that there is no change of the value of the signal
+  if (IsValueInsideRangeExpected == 1)
+  {
+    gCheckID_VC = ChkStart_MsgSignalValueRangeViolation (sysVarName, aMinValue, aMaxValue, "SVC_CAPL_Callback_Sys_Value_Range");
+  }
+  else
+  {
+    gCheckID_VC = ChkStart_MsgSignalValueInvalid (sysVarName, aMinValue, aMaxValue, "SVC_CAPL_Callback_Sys_Value_Range");
+  }
+   
+  if (!gCheckID_VC)
+  {
+    testStepFail("", "System Variable Value change could not start, System Variable not available OR CAPL callback does not exist");
+  }
+  
+  testAddCondition(gCheckID_VC, VerdictNotExpected);
+  testStep("Observation", "Background check of System variable : \" %s \" started for value range (%ld ... %ld)", sysVarName.name, aMinValue, aMaxValue);
+}
+
+/// <StratObservation_CountTime/SysInt>
+/**
+ * @brief Starts background observation for an integer system variable with count and time validation.
+ * Monitors if value goes inside/outside range and validates that it happens expected number of times within time window.
+*
+* @param[in] sysVarName - Int dataType System Variable Name
+* @param[in] aMinValue - Minimum value of the range (aMinValue <= aMaxValue)
+* @param[in] aMaxValue - Maximum value of the range (aMinValue <= aMaxValue)
+* @param[in] IsValueInsideRangeExpected - YES if expecting value inside range, NO if expecting outside range
+* @param[in] expectedCount - Expected number of changes to occur (e.g., 3 or 4)
+* @param[in] timeWindowMs - Time window in milliseconds within which changes must occur (0 = no time limit)
+* @param[in] expectCriteriaMet - 1 if meeting count+time criteria should result in PASS, 0 if meeting should result in FAIL
+*
+ * @return None
+ *
+ * @details Initiates monitoring for the system variable to check:
+ *          1. If its value enters or leaves the specified range
+ *          2. If the change occurs the expected number of times
+ *          3. If all changes occur within the specified time window
+ *          
+ *          Use Lib_SVC_ValidateResultWithCountAndTime() to validate the result.
+ *          Each change increments a counter. After reaching expectedCount, validation can be performed.
+ *
+ * @example
+ *          // Monitor if value goes outside range [10, 50] at least 3 times within 5000ms, expecting it to meet criteria
+ *          Lib_SVC_StartObservation(@sysvar::MyVar, 10, 50, NO, 3, 5000, 1);
+ *          // ... wait for changes ...
+ *          Lib_SVC_ValidateResultWithCountAndTime(YES, 3, 5000);
+ *
+* @verdict Failed to start background observation \n
+*          Passed Successfully started background observation
+*///***************************************************************************** 
+export void Lib_SVC_StartObservation(sysvarInt* sysVarName, double aMinValue, double aMaxValue, enum eChangeExpected IsValueInsideRangeExpected
+                                                , dword expectedCount, dword timeWindowMs, enum eChangeExpected expectCriteriaMet)
+{
+  #pragma warning(disable: 2038)
+  
+  // Initialize range parameters
+  gExpectedMinValue = aMinValue;
+  gExpectedMaxValue = aMaxValue;
+  gIsValueInsideRangeExpected = IsValueInsideRangeExpected;
+  
+  // Initialize count and time tracking
+  gChangeResult = 0;
+  gChangeCount = 0;
+  gExpectedCount = expectedCount;
+  gTimeWindowMs = timeWindowMs;
+  gUserExpectation = expectCriteriaMet;
+  gStartTimestamp = timeNowInt64() / 100000; // Convert to milliseconds
+  gFirstChangeTimestamp = 0;
+  gLastChangeTimestamp = 0;
+  
+  // Validate input parameters
+  if (aMinValue > aMaxValue)
+  {
+    testStepFail("WrongInput", "Lib_SVC_StartObservation()! should be aMinValue (%ld) <= aMaxValue (%ld)", aMinValue, aMaxValue);
+    return;
+  }
+  
+  if (expectedCount == 0)
+  {
+    testStepFail("WrongInput", "Lib_SVC_StartObservation()! expectedCount must be greater than 0");
+    return;
+  }
+  
+  // Start the check with count/time callback
+  if (IsValueInsideRangeExpected == 1)
+  {
+    gCheckID_VC = ChkStart_MsgSignalValueRangeViolation (sysVarName, aMinValue, aMaxValue, "SVC_CAPL_Callback_Sys_Value_Range_CountTime");
+  }
+  else
+  {
+    gCheckID_VC = ChkStart_MsgSignalValueInvalid (sysVarName, aMinValue, aMaxValue, "SVC_CAPL_Callback_Sys_Value_Range_CountTime");
+  }
+   
+  if (!gCheckID_VC)
+  {
+    testStepFail("", "System Variable Value change could not start, System Variable not available OR CAPL callback does not exist");
+  }
+  
+  testAddCondition(gCheckID_VC, VerdictNotExpected);
+  testStep("Observation", "Background check of System variable : \"%s\" started for value range (%ld ... %ld), expectedCount: %d, timeWindow: %d ms", 
+           sysVarName.name, aMinValue, aMaxValue, expectedCount, timeWindowMs);
+}
+
+/// <StartObervation/SysFloat>
+/**
+ * @brief Starts background observation for value changes of a float system variable.
+*
+* @param[in] sysVarName - Float dataTye System Variable Name
+*
+ * @details Initiates monitoring for any value change of the specified float system variable.
+ *          If the observation cannot be started, a test step failure is reported.
+ *
+* @verdict Failed to start background observation \n
+*          Passed Successfully started background observation
+*///***************************************************************************** 
+export void Lib_SVC_StartObservation(sysvarFloat* sysVarName)
+{
+  #pragma warning(disable: 2038)
+  gChangeResult = 0;
+  
+  // checks that there is no change of the value of the signal
+  gCheckID_VC = chkStart_SignalValueChange (sysVarName, "SVC_CAPL_Callback_Sys");
+  
+  if (!gCheckID_VC)
+  {
+    testStepFail("", "System Variable Value change could not start, System Variable not available OR CAPL callback does not exist");
+  }
+  
+  testAddCondition(gCheckID_VC, VerdictNotExpected); 
+  testStep("Observation", "Background check of System variable : \" %s \" started", sysVarName.name);
+}
+
+/// <StartObervation/SysFloat>
+/**
+ * @brief Starts background observation for a specific value change of a float system variable.
+*
+* @param[in] sysVarName - Float dataTye System Variable Name
+* @param[in] variableValue - Expected variable value change
+*
+ * @details Initiates monitoring for a specific value change of the given float system variable.
+ *          If the observation cannot be started, a test step failure is reported.
+* @verdict Failed to start background observation \n
+*          Passed Successfully started background observation
+*///***************************************************************************** 
+export void Lib_SVC_StartObservation(sysvarFloat* sysVarName, long variableValue)
+{
+  #pragma warning(disable: 2038)
+  gExpectedValue = variableValue;
+  gChangeResult = 0;
+  
+  // checks that there is no change of the value of the signal
+  gCheckID_VC = chkStart_SignalValueChange (sysVarName, "SVC_CAPL_Callback_Sys_Value");
+  
+  if (!gCheckID_VC)
+  {
+    testStepFail("", "System Variable Value change could not start, System Variable not available OR CAPL callback does not exist");
+  }
+  
+  testAddCondition(gCheckID_VC, VerdictNotExpected); 
+  testStep("Observation", "Background check of System variable : \" %s \" started for value %d", sysVarName.name, variableValue);
+}
+
+/// <StartObervation/SysFloat>
+/**
+ * @brief Starts background observation for a float system variable to check if its value is inside or outside a specified range.
+*
+* @param[in] sysVarName - float dataType System Variable Name
+* @param[in] aMinValue - aMinValue <= aMaxValue
+* @param[in] aMaxValue - aMinValue <= aMaxValue
+* @param[in] IsValueInsideRangeExpected - YES or NO. If expected then YES
+*
+ * @details Initiates monitoring for the system variable to check if its value enters or leaves the specified range.
+ *          If the minimum value is greater than the maximum, a test step failure is reported.
+ *          If the observation cannot be started, a test step failure is reported.
+ *
+* @verdict Failed to start background observation \n
+*          Passed Successfully started background observation
+*///***************************************************************************** 
+export void Lib_SVC_StartObservation(sysvarFloat* sysVarName, double aMinValue, double aMaxValue, enum eChangeExpected IsValueInsideRangeExpected)
+{
+  #pragma warning(disable: 2038)
+  gExpectedMinValue = aMinValue;
+  gExpectedMaxValue = aMaxValue;
+  gIsValueInsideRangeExpected = IsValueInsideRangeExpected;
+  gChangeResult = 0;
+  
+  if (aMinValue > aMaxValue)
+  {
+    testStepFail("WrongInput", "Lib_SVC_StartObservation()! should be aMinValue (%ld) <= aMaxValue (%ld)", aMinValue, aMaxValue);
+    return;
+  }
+  
+  // checks that there is no change of the value of the signal
+  if (IsValueInsideRangeExpected == 1)
+  {
+    gCheckID_VC = ChkStart_MsgSignalValueRangeViolation (sysVarName, aMinValue, aMaxValue, "SVC_CAPL_Callback_Sys_Value_Range");
+  }
+  else
+  {
+    gCheckID_VC = ChkStart_MsgSignalValueInvalid (sysVarName, aMinValue, aMaxValue, "SVC_CAPL_Callback_Sys_Value_Range");
+  }
+   
+  if (!gCheckID_VC)
+  {
+    testStepFail("", "System Variable Value change could not start, System Variable not available OR CAPL callback does not exist");
+  }
+  
+  testAddCondition(gCheckID_VC, VerdictNotExpected);
+  testStep("Observation", "Background check of System variable : \" %s \" started for value range (%ld ... %ld)", sysVarName.name, aMinValue, aMaxValue);
+}
+
+/// <StratObservation_CountTime/SysFloat>
+/**
+ * @brief Starts background observation for a float system variable with count and time validation.
+ * Monitors if value goes inside/outside range and validates that it happens expected number of times within time window.
+*
+* @param[in] sysVarName - Float dataType System Variable Name
+* @param[in] aMinValue - Minimum value of the range (aMinValue <= aMaxValue)
+* @param[in] aMaxValue - Maximum value of the range (aMinValue <= aMaxValue)
+* @param[in] IsValueInsideRangeExpected - YES if expecting value inside range, NO if expecting outside range
+* @param[in] expectedCount - Expected number of changes to occur (e.g., 3 or 4)
+* @param[in] timeWindowMs - Time window in milliseconds within which changes must occur (0 = no time limit)
+* @param[in] expectCriteriaMet - 1 if meeting count+time criteria should result in PASS, 0 if meeting should result in FAIL
+*
+ * @return None
+ *
+ * @details Initiates monitoring for the system variable to check:
+ *          1. If its value enters or leaves the specified range
+ *          2. If the change occurs the expected number of times
+ *          3. If all changes occur within the specified time window
+ *
+* @verdict Failed to start background observation \n
+*          Passed Successfully started background observation
+*///***************************************************************************** 
+export void Lib_SVC_StartObservation(sysvarFloat* sysVarName, double aMinValue, double aMaxValue, enum eChangeExpected IsValueInsideRangeExpected
+                                             , dword expectedCount, dword timeWindowMs, enum eChangeExpected expectCriteriaMet)
+{
+  Lib_SVC_StartObservation(sysVarName, aMinValue, aMaxValue, IsValueInsideRangeExpected
+                                             , expectedCount, timeWindowMs, expectCriteriaMet, NO);
+}
+
+/// <StratObservation_CountTime/SysFloat>
+/**
+ * @brief Starts background observation for a float system variable with count and time validation.
+ * Monitors if value goes inside/outside range and validates that it happens expected number of times within time window.
+*
+* @param[in] sysVarName - Float dataType System Variable Name
+* @param[in] aMinValue - Minimum value of the range (aMinValue <= aMaxValue)
+* @param[in] aMaxValue - Maximum value of the range (aMinValue <= aMaxValue)
+* @param[in] IsValueInsideRangeExpected - YES if expecting value inside range, NO if expecting outside range
+* @param[in] expectedCount - Expected number of changes to occur (e.g., 3 or 4)
+* @param[in] timeWindowMs - Time window in milliseconds within which changes must occur (0 = no time limit)
+* @param[in] expectCriteriaMet - 1 if meeting count+time criteria should result in PASS, 0 if meeting should result in FAIL
+*
+ * @return None
+ *
+ * @details Initiates monitoring for the system variable to check:
+ *          1. If its value enters or leaves the specified range
+ *          2. If the change occurs the expected number of times
+ *          3. If all changes occur within the specified time window
+ *
+* @verdict Failed to start background observation \n
+*          Passed Successfully started background observation
+*///***************************************************************************** 
+export void Lib_SVC_StartObservation(sysvarFloat* sysVarName, double aMinValue, double aMaxValue, enum eChangeExpected IsValueInsideRangeExpected
+                                                  , dword expectedCount, dword timeWindowMs, enum eChangeExpected expectCriteriaMet, enum eChangeExpected isCANoeStopOnObservation)
+{
+  #pragma warning(disable: 2038)
+  
+  // Initialize range parameters
+  gExpectedMinValue = aMinValue;
+  gExpectedMaxValue = aMaxValue;
+  gIsValueInsideRangeExpected = IsValueInsideRangeExpected;
+  
+  gStopCanoeOnChange = isCANoeStopOnObservation;
+  // Initialize count and time tracking
+  gChangeResult = 0;
+  gChangeCount = 0;
+  gExpectedCount = expectedCount;
+  gTimeWindowMs = timeWindowMs;
+  gUserExpectation = expectCriteriaMet;
+  gStartTimestamp = timeNowInt64() / 100000; // Convert to milliseconds
+  gFirstChangeTimestamp = 0;
+  gLastChangeTimestamp = 0;
+  
+  // Validate input parameters
+  if (aMinValue > aMaxValue)
+  {
+    testStepFail("WrongInput", "Lib_SVC_StartObservation()! should be aMinValue (%ld) <= aMaxValue (%ld)", aMinValue, aMaxValue);
+    return;
+  }
+  
+  if (expectedCount == 0)
+  {
+    testStepFail("WrongInput", "Lib_SVC_StartObservation()! expectedCount must be greater than 0");
+    return;
+  }
+  
+  // Start the check with count/time callback
+  if (IsValueInsideRangeExpected == 1)
+  {
+    gCheckID_VC = ChkStart_MsgSignalValueRangeViolation (sysVarName, aMinValue, aMaxValue, "SVC_CAPL_Callback_Sys_Value_Range_CountTime");
+  }
+  else
+  {
+    gCheckID_VC = ChkStart_MsgSignalValueInvalid (sysVarName, aMinValue, aMaxValue, "SVC_CAPL_Callback_Sys_Value_Range_CountTime");
+  }
+   
+  if (!gCheckID_VC)
+  {
+    testStepFail("", "System Variable Value change could not start, System Variable not available OR CAPL callback does not exist");
+  }
+  
+  testAddCondition(gCheckID_VC, VerdictNotExpected);
+  testStep("Observation", "Background check of System variable : \"%s\" started for value range (%ld ... %ld), expectedCount: %d, timeWindow: %d ms", 
+           sysVarName.name, aMinValue, aMaxValue, expectedCount, timeWindowMs);
+}
+
+/// <StartObervation/Signal>
+/**
+ * @brief Starts background observation for value changes of a signal.
+*
+* @param[in] signalName - Signal Name which want to observe
+*
+ * @details Initiates monitoring for any value change of the specified signal.
+ *          If the observation cannot be started (e.g., signal not mapped or callback missing),
+ *          a test step failure is reported.
+ *
+* @verdict Failed to start background observation \n
+*          Passed Successfully started background observation
+*///*****************************************************************************
+export void Lib_SVC_StartObservation(signal* signalName)
+{
+  #pragma warning(disable: 2038)
+  gChangeResult = 0;
+  
+  // checks that there is no change of the value of the signal
+  gCheckID_VC = chkStart_SignalValueChange (signalName, "SVC_CAPL_Callback_Signal");
+  
+  if (!gCheckID_VC)
+  {
+    testStepFail("", "Signal Value change could not start, Signal is not mapped to message OR CAPL callback does not exist");
+  }
+  
+  testAddCondition(gCheckID_VC, VerdictNotExpected);
+  testStep("Observation", "Background check of Signal : \" %s \" started", signalName.name);
+}
+
+/// <StartObervation/Signal>
+/**
+ * @brief Starts background observation for a specific value change of a signal.
+*
+* @param[in] signalName - Signal Name which want to observe
+* @param[in] signalValue - Expected Signal value change
+*
+ * @details Initiates monitoring for a specific value change of the given signal.
+ *          If the observation cannot be started, a test step failure is reported.
+ *
+* @verdict Failed to start background observation \n
+*          Passed Successfully started background observation
+*///*****************************************************************************
+export void Lib_SVC_StartObservation(signal* signalName, long signalValue)
+{
+  #pragma warning(disable: 2038)
+  gExpectedValue = signalValue;
+  gChangeResult = 0;
+  
+  // checks that there is no change of the value of the signal
+  gCheckID_VC = chkStart_SignalValueChange (signalName, "SVC_CAPL_Callback_Signal_Value");
+  
+  if (!gCheckID_VC)
+  {
+    testStepFail("", "Signal Value change could not start, Signal is not mapped to message OR CAPL callback does not exist");
+  }
+  
+  testAddCondition(gCheckID_VC, VerdictNotExpected);
+  testStep("Observation", "Background check of Signal : \" %s \" started for value %d", signalName.name, signalValue);
+}
+
+/// <StartObervation/Signal>
+/**
+ * @brief Starts background observation for a signal to check if its value is inside or outside a specified range.
+*
+* @param[in] signalName - Signal Name which want to observe
+* @param[in] aMinValue - aMinValue <= aMaxValue
+* @param[in] aMaxValue - aMinValue <= aMaxValue
+* @param[in] IsValueInsideRangeExpected - YES or NO. If expected then YES
+*
+ * @details Initiates monitoring for the signal to check if its value enters or leaves the specified range.
+ *          If the minimum value is greater than the maximum, a test step failure is reported.
+ *          If the observation cannot be started, a test step failure is reported.
+ *
+* @verdict Failed to start background observation \n
+*          Passed Successfully started background observation
+*///***************************************************************************** 
+export void Lib_SVC_StartObservation(signal* signalName, double aMinValue, double aMaxValue, enum eChangeExpected IsValueInsideRangeExpected)
+{
+  #pragma warning(disable: 2038)
+  gExpectedMinValue = aMinValue;
+  gExpectedMaxValue = aMaxValue;
+  gIsValueInsideRangeExpected = IsValueInsideRangeExpected;
+  gChangeResult = 0;
+  
+  if (aMinValue > aMaxValue)
+  {
+    testStepFail("WrongInput", "Lib_SVC_StartObservation()! should be aMinValue (%ld) <= aMaxValue (%ld)", aMinValue, aMaxValue);
+    return;
+  }
+  
+  // checks that there is no change of the value of the signal
+  if (IsValueInsideRangeExpected == 1)
+  {
+    gCheckID_VC = ChkStart_MsgSignalValueRangeViolation (signalName, aMinValue, aMaxValue, "SVC_CAPL_Callback_Signal_Value_Range");
+  }
+  else
+  {
+    gCheckID_VC = ChkStart_MsgSignalValueInvalid (signalName, aMinValue, aMaxValue, "SVC_CAPL_Callback_Signal_Value_Range");
+  }
+   
+  if (!gCheckID_VC)
+  {
+    testStepFail("", "Signal Value change could not start, Signal not available OR CAPL callback does not exist");
+  }
+  
+  testAddCondition(gCheckID_VC, VerdictNotExpected);
+  testStep("Observation", "Background check of Signal : \" %s \" started for value range (%ld ... %ld)", signalName.name, aMinValue, aMaxValue);
+}
+
+/// <StratObservation_CountTime/Signal>
+/**
+ * @brief Starts background observation for a signal with count and time validation.
+ * Monitors if signal value goes inside/outside range and validates that it happens expected number of times within time window.
+*
+* @param[in] signalName - Signal Name which want to observe
+* @param[in] aMinValue - Minimum value of the range (aMinValue <= aMaxValue)
+* @param[in] aMaxValue - Maximum value of the range (aMinValue <= aMaxValue)
+* @param[in] IsValueInsideRangeExpected - YES if expecting value inside range, NO if expecting outside range
+* @param[in] expectedCount - Expected number of changes to occur (e.g., 3 or 4)
+* @param[in] timeWindowMs - Time window in milliseconds within which changes must occur (0 = no time limit)
+*
+ * @return None
+ *
+ * @details Initiates monitoring for the signal to check:
+ *          1. If its value enters or leaves the specified range
+ *          2. If the change occurs the expected number of times
+ *          3. If all changes occur within the specified time window
+ *          
+ *          Use Lib_SVC_ValidateResultWithCountAndTime() to validate the result.
+ *          After each change, the counter increments. Once expectedCount is reached within
+ *          the timeWindow, you can proceed with your test execution.
+ *
+ * @example
+ *          // Monitor if signal goes outside range [100, 200] at least 4 times within 3000ms
+ *          Lib_SVC_StartObservation($MySignal, 100, 200, NO, 4, 3000, 1);
+ *          // ... wait for changes ...
+ *          Lib_SVC_ValidateResultWithCountAndTime(YES, 4, 3000);
+ *
+* @verdict Failed to start background observation \n
+*          Passed Successfully started background observation
+*///***************************************************************************** 
+export void Lib_SVC_StartObservation(signal* signalName, double aMinValue, double aMaxValue, enum eChangeExpected IsValueInsideRangeExpected
+                                                  , dword expectedCount, dword timeWindowMs, enum eChangeExpected expectCriteriaMet)
+{
+  #pragma warning(disable: 2038)
+  
+  // Initialize range parameters
+  gExpectedMinValue = aMinValue;
+  gExpectedMaxValue = aMaxValue;
+  gIsValueInsideRangeExpected = IsValueInsideRangeExpected;
+  
+  // Initialize count and time tracking
+  gChangeResult = 0;
+  gChangeCount = 0;
+  gExpectedCount = expectedCount;
+  gTimeWindowMs = timeWindowMs;
+  gUserExpectation = expectCriteriaMet;
+  gStartTimestamp = timeNowInt64() / 100000; // Convert to milliseconds
+  gFirstChangeTimestamp = 0;
+  gLastChangeTimestamp = 0;
+  
+  // Validate input parameters
+  if (aMinValue > aMaxValue)
+  {
+    testStepFail("WrongInput", "Lib_SVC_StartObservation()! should be aMinValue (%ld) <= aMaxValue (%ld)", aMinValue, aMaxValue);
+    return;
+  }
+  
+  if (expectedCount == 0)
+  {
+    testStepFail("WrongInput", "Lib_SVC_StartObservation()! expectedCount must be greater than 0");
+    return;
+  }
+  
+  // Start the check with count/time callback
+  if (IsValueInsideRangeExpected == 1)
+  {
+    gCheckID_VC = ChkStart_MsgSignalValueRangeViolation (signalName, aMinValue, aMaxValue, "SVC_CAPL_Callback_Signal_Value_Range_CountTime");
+  }
+  else
+  {
+    gCheckID_VC = ChkStart_MsgSignalValueInvalid (signalName, aMinValue, aMaxValue, "SVC_CAPL_Callback_Signal_Value_Range_CountTime");
+  }
+   
+  if (!gCheckID_VC)
+  {
+    testStepFail("", "Signal Value change could not start, Signal not available OR CAPL callback does not exist");
+  }
+  
+  testAddCondition(gCheckID_VC, VerdictNotExpected);
+  testStep("Observation", "Background check of Signal : \"%s\" started for value range (%ld ... %ld), expectedCount: %d, timeWindow: %d ms", 
+           signalName.name, aMinValue, aMaxValue, expectedCount, timeWindowMs);
+}
+
+//! ==================== CYCLE DETECTION API ====================
+
+/// <StartObservation_CycleDetection/SysInt>
+/**
+ * @brief Starts cycle detection observation for an integer system variable.
+ * Monitors complete violation→recovery cycles (signal goes out of range and returns to normal).
+*
+* @param[in] sysVarName - Int dataType System Variable Name
+* @param[in] aMinValue - Minimum value of the range (aMinValue <= aMaxValue)
+* @param[in] aMaxValue - Maximum value of the range (aMinValue <= aMaxValue)
+* @param[in] IsValueInsideRangeExpected - YES if expecting value inside range, NO if expecting outside range
+* @param[in] expectedCycles - Expected number of complete cycles (violation→recovery)
+* @param[in] stopCanoeOnCycleReached - YES to stop CANoe when cycle count is reached
+*
+ * @return None
+ *
+ * @details Initiates monitoring for complete cycles:
+ *          - A cycle = signal violates range → returns to normal
+ *          - Counts only complete cycles (not just violations)
+ *          - Optionally stops CANoe when threshold is reached
+ *          
+ *          Example: Signal voltage drops below 5V briefly, then recovers = 1 cycle
+ *
+* @example
+*          // Detect 3 cycles of voltage dropping below 5V (range 5..100) and stop CANoe
+*          Lib_SVC_StartObservation_CycleDetection(@sysvar::Voltage, 5, 100, YES, 3, YES);
+*
+* @verdict Failed to start background observation \n
+*          Passed Successfully started background observation
+*///***************************************************************************** 
+export void Lib_SVC_StartObservation_CycleDetection(sysvarInt* sysVarName, double aMinValue, double aMaxValue, 
+                                                     enum eChangeExpected IsValueInsideRangeExpected,
+                                                     dword expectedCycles, 
+                                                     enum eChangeExpected stopCanoeOnCycleReached)
+{
+  #pragma warning(disable: 2038)
+  
+  // Initialize range parameters
+  gExpectedMinValue = aMinValue;
+  gExpectedMaxValue = aMaxValue;
+  gIsValueInsideRangeExpected = IsValueInsideRangeExpected;
+  
+  // Initialize cycle tracking
+  gChangeResult = 0;
+  gCompleteCycleCount = 0;
+  gExpectedCycles = expectedCycles;
+  gStopCanoeOnCycleReached = stopCanoeOnCycleReached;
+  gCurrentState = STATE_NORMAL;
+  gViolationStartTime = 0;
+  gRecoveryStartTime = 0;
+  gLastViolationEndTime = 0;
+  gExpectedCycleIntervalMs = 0;
+  gCycleIntervalToleranceMs = 0;
+  gMinRecoveryDurationMs = 0;
+  gUserExpectation = YES; // Default: expect cycles to occur
+  gStartTimestamp = timeNowInt64() / 100000;
+  
+  // Validate input parameters
+  if (aMinValue > aMaxValue)
+  {
+    testStepFail("WrongInput", "Lib_SVC_StartObservation_CycleDetection()! should be aMinValue (%ld) <= aMaxValue (%ld)", aMinValue, aMaxValue);
+    return;
+  }
+  
+  if (expectedCycles == 0)
+  {
+    testStepFail("WrongInput", "Lib_SVC_StartObservation_CycleDetection()! expectedCycles must be greater than 0");
+    return;
+  }
+  
+  // Start the check with cycle detection callback
+  if (IsValueInsideRangeExpected == YES)
+  {
+    gCheckID_VC = ChkStart_MsgSignalValueRangeViolation (sysVarName, aMinValue, aMaxValue, "SVC_CAPL_Callback_Sys_Value_Range_CycleDetection");
+  }
+  else
+  {
+    gCheckID_VC = ChkStart_MsgSignalValueInvalid (sysVarName, aMinValue, aMaxValue, "SVC_CAPL_Callback_Sys_Value_Range_CycleDetection");
+  }
+   
+  if (!gCheckID_VC)
+  {
+    testStepFail("", "System Variable cycle detection could not start, Variable not available OR CAPL callback does not exist");
+    return;
+  }
+  
+  testAddCondition(gCheckID_VC, VerdictNotExpected);
+  testStep("Observation", "Cycle detection started for System variable : \"%s\" (Range: %ld...%ld, Expected cycles: %d, Stop CANoe: %d)", 
+           sysVarName.name, aMinValue, aMaxValue, expectedCycles, stopCanoeOnCycleReached);
+}
+
+/// <StartObservation_CycleDetection/SysInt>
+/**
+ * @brief Starts cycle detection observation with interval validation for an integer system variable.
+*
+* @param[in] sysVarName - Int dataType System Variable Name
+* @param[in] aMinValue - Minimum value of the range
+* @param[in] aMaxValue - Maximum value of the range
+* @param[in] IsValueInsideRangeExpected - YES if expecting value inside range, NO if expecting outside
+* @param[in] expectedCycles - Expected number of complete cycles
+* @param[in] stopCanoeOnCycleReached - YES to stop CANoe when cycle count is reached
+* @param[in] expectedCycleIntervalMs - Expected time between cycles in ms (0 = no validation)
+* @param[in] cycleIntervalToleranceMs - Tolerance for cycle interval validation in ms
+*
+ * @return None
+ *
+ * @details Enhanced cycle detection with periodic validation:
+ *          - Monitors complete violation→recovery cycles
+ *          - Validates that cycles occur at regular intervals (e.g., every ~10 seconds)
+ *          - Warns if cycle interval is outside tolerance
+ *
+* @example
+*          // Detect 4 cycles occurring every 10s ± 2s, stop CANoe when reached
+*          Lib_SVC_StartObservation_CycleDetection(@sysvar::Voltage, 5, 100, YES, 4, YES, 10000, 2000);
+*
+*///***************************************************************************** 
+export void Lib_SVC_StartObservation_CycleDetection(sysvarInt* sysVarName, double aMinValue, double aMaxValue, 
+                                                     enum eChangeExpected IsValueInsideRangeExpected,
+                                                     dword expectedCycles, 
+                                                     enum eChangeExpected stopCanoeOnCycleReached,
+                                                     dword expectedCycleIntervalMs,
+                                                     dword cycleIntervalToleranceMs)
+{
+  #pragma warning(disable: 2038)
+  
+  // Initialize range parameters
+  gExpectedMinValue = aMinValue;
+  gExpectedMaxValue = aMaxValue;
+  gIsValueInsideRangeExpected = IsValueInsideRangeExpected;
+  
+  // Initialize cycle tracking with interval validation
+  gChangeResult = 0;
+  gCompleteCycleCount = 0;
+  gExpectedCycles = expectedCycles;
+  gStopCanoeOnCycleReached = stopCanoeOnCycleReached;
+  gCurrentState = STATE_NORMAL;
+  gViolationStartTime = 0;
+  gRecoveryStartTime = 0;
+  gLastViolationEndTime = 0;
+  gExpectedCycleIntervalMs = expectedCycleIntervalMs;
+  gCycleIntervalToleranceMs = cycleIntervalToleranceMs;
+  gMinRecoveryDurationMs = 0;
+  gUserExpectation = YES;
+  gStartTimestamp = timeNowInt64() / 100000;
+  
+  // Validate input parameters
+  if (aMinValue > aMaxValue)
+  {
+    testStepFail("WrongInput", "Lib_SVC_StartObservation_CycleDetection()! should be aMinValue (%ld) <= aMaxValue (%ld)", aMinValue, aMaxValue);
+    return;
+  }
+  
+  if (expectedCycles == 0)
+  {
+    testStepFail("WrongInput", "Lib_SVC_StartObservation_CycleDetection()! expectedCycles must be greater than 0");
+    return;
+  }
+  
+  // Start the check with cycle detection callback
+  if (IsValueInsideRangeExpected == YES)
+  {
+    gCheckID_VC = ChkStart_MsgSignalValueRangeViolation (sysVarName, aMinValue, aMaxValue, "SVC_CAPL_Callback_Sys_Value_Range_CycleDetection");
+  }
+  else
+  {
+    gCheckID_VC = ChkStart_MsgSignalValueInvalid (sysVarName, aMinValue, aMaxValue, "SVC_CAPL_Callback_Sys_Value_Range_CycleDetection");
+  }
+   
+  if (!gCheckID_VC)
+  {
+    testStepFail("", "System Variable cycle detection could not start, Variable not available OR CAPL callback does not exist");
+    return;
+  }
+  
+  testAddCondition(gCheckID_VC, VerdictNotExpected);
+  testStep("Observation", "Cycle detection started for System variable : \"%s\" (Range: %ld...%ld, Expected cycles: %d, Interval: %d ms ± %d ms)", 
+           sysVarName.name, aMinValue, aMaxValue, expectedCycles, expectedCycleIntervalMs, cycleIntervalToleranceMs);
+}
+
+/// <StartObservation_CycleDetection/SysFloat>
+/**
+ * @brief Starts cycle detection observation for a float system variable.
+*
+* @param[in] sysVarName - Float dataType System Variable Name
+* @param[in] aMinValue - Minimum value of the range
+* @param[in] aMaxValue - Maximum value of the range
+* @param[in] IsValueInsideRangeExpected - YES if expecting value inside range, NO if expecting outside
+* @param[in] expectedCycles - Expected number of complete cycles
+* @param[in] stopCanoeOnCycleReached - YES to stop CANoe when cycle count is reached
+*
+*///***************************************************************************** 
+export void Lib_SVC_StartObservation_CycleDetection(sysvarFloat* sysVarName, double aMinValue, double aMaxValue, 
+                                                     enum eChangeExpected IsValueInsideRangeExpected,
+                                                     dword expectedCycles, 
+                                                     enum eChangeExpected stopCanoeOnCycleReached)
+{
+  #pragma warning(disable: 2038)
+  
+  // Initialize range parameters
+  gExpectedMinValue = aMinValue;
+  gExpectedMaxValue = aMaxValue;
+  gIsValueInsideRangeExpected = IsValueInsideRangeExpected;
+  
+  // Initialize cycle tracking
+  gChangeResult = 0;
+  gCompleteCycleCount = 0;
+  gExpectedCycles = expectedCycles;
+  gStopCanoeOnCycleReached = stopCanoeOnCycleReached;
+  gCurrentState = STATE_NORMAL;
+  gViolationStartTime = 0;
+  gRecoveryStartTime = 0;
+  gLastViolationEndTime = 0;
+  gExpectedCycleIntervalMs = 0;
+  gCycleIntervalToleranceMs = 0;
+  gMinRecoveryDurationMs = 0;
+  gUserExpectation = YES;
+  gStartTimestamp = timeNowInt64() / 100000;
+  
+  // Validate input parameters
+  if (aMinValue > aMaxValue)
+  {
+    testStepFail("WrongInput", "Lib_SVC_StartObservation_CycleDetection()! should be aMinValue (%ld) <= aMaxValue (%ld)", aMinValue, aMaxValue);
+    return;
+  }
+  
+  if (expectedCycles == 0)
+  {
+    testStepFail("WrongInput", "Lib_SVC_StartObservation_CycleDetection()! expectedCycles must be greater than 0");
+    return;
+  }
+  
+  // Start the check with cycle detection callback
+  if (IsValueInsideRangeExpected == YES)
+  {
+    gCheckID_VC = ChkStart_MsgSignalValueRangeViolation (sysVarName, aMinValue, aMaxValue, "SVC_CAPL_Callback_Sys_Value_Range_CycleDetection");
+  }
+  else
+  {
+    gCheckID_VC = ChkStart_MsgSignalValueInvalid (sysVarName, aMinValue, aMaxValue, "SVC_CAPL_Callback_Sys_Value_Range_CycleDetection");
+  }
+   
+  if (!gCheckID_VC)
+  {
+    testStepFail("", "System Variable cycle detection could not start, Variable not available OR CAPL callback does not exist");
+    return;
+  }
+  
+  testAddCondition(gCheckID_VC, VerdictNotExpected);
+  testStep("Observation", "Cycle detection started for System variable : \"%s\" (Range: %ld...%ld, Expected cycles: %d, Stop CANoe: %d)", 
+           sysVarName.name, aMinValue, aMaxValue, expectedCycles, stopCanoeOnCycleReached);
+}
+
+/// <StartObservation_CycleDetection/SysFloat>
+/**
+ * @brief Starts cycle detection observation with interval validation for a float system variable.
+*
+*///***************************************************************************** 
+export void Lib_SVC_StartObservation_CycleDetection(sysvarFloat* sysVarName, double aMinValue, double aMaxValue, 
+                                                     enum eChangeExpected IsValueInsideRangeExpected,
+                                                     dword expectedCycles, 
+                                                     enum eChangeExpected stopCanoeOnCycleReached,
+                                                     dword expectedCycleIntervalMs,
+                                                     dword cycleIntervalToleranceMs)
+{
+  #pragma warning(disable: 2038)
+  
+  // Initialize range parameters
+  gExpectedMinValue = aMinValue;
+  gExpectedMaxValue = aMaxValue;
+  gIsValueInsideRangeExpected = IsValueInsideRangeExpected;
+  
+  // Initialize cycle tracking with interval validation
+  gChangeResult = 0;
+  gCompleteCycleCount = 0;
+  gExpectedCycles = expectedCycles;
+  gStopCanoeOnCycleReached = stopCanoeOnCycleReached;
+  gCurrentState = STATE_NORMAL;
+  gViolationStartTime = 0;
+  gRecoveryStartTime = 0;
+  gLastViolationEndTime = 0;
+  gExpectedCycleIntervalMs = expectedCycleIntervalMs;
+  gCycleIntervalToleranceMs = cycleIntervalToleranceMs;
+  gMinRecoveryDurationMs = 0;
+  gUserExpectation = YES;
+  gStartTimestamp = timeNowInt64() / 100000;
+  
+  // Validate input parameters
+  if (aMinValue > aMaxValue)
+  {
+    testStepFail("WrongInput", "Lib_SVC_StartObservation_CycleDetection()! should be aMinValue (%ld) <= aMaxValue (%ld)", aMinValue, aMaxValue);
+    return;
+  }
+  
+  if (expectedCycles == 0)
+  {
+    testStepFail("WrongInput", "Lib_SVC_StartObservation_CycleDetection()! expectedCycles must be greater than 0");
+    return;
+  }
+  
+  // Start the check with cycle detection callback
+  if (IsValueInsideRangeExpected == YES)
+  {
+    gCheckID_VC = ChkStart_MsgSignalValueRangeViolation (sysVarName, aMinValue, aMaxValue, "SVC_CAPL_Callback_Sys_Value_Range_CycleDetection");
+  }
+  else
+  {
+    gCheckID_VC = ChkStart_MsgSignalValueInvalid (sysVarName, aMinValue, aMaxValue, "SVC_CAPL_Callback_Sys_Value_Range_CycleDetection");
+  }
+   
+  if (!gCheckID_VC)
+  {
+    testStepFail("", "System Variable cycle detection could not start, Variable not available OR CAPL callback does not exist");
+    return;
+  }
+  
+  testAddCondition(gCheckID_VC, VerdictNotExpected);
+  testStep("Observation", "Cycle detection started for System variable : \"%s\" (Range: %ld...%ld, Expected cycles: %d, Interval: %d ms ± %d ms)", 
+           sysVarName.name, aMinValue, aMaxValue, expectedCycles, expectedCycleIntervalMs, cycleIntervalToleranceMs);
+}
+
+/// <StartObservation_CycleDetection/Signal>
+/**
+ * @brief Starts cycle detection observation for a signal.
+*
+* @param[in] signalName - Signal Name which want to observe
+* @param[in] aMinValue - Minimum value of the range
+* @param[in] aMaxValue - Maximum value of the range
+* @param[in] IsValueInsideRangeExpected - YES if expecting value inside range, NO if expecting outside
+* @param[in] expectedCycles - Expected number of complete cycles
+* @param[in] stopCanoeOnCycleReached - YES to stop CANoe when cycle count is reached
+*
+*///***************************************************************************** 
+export void Lib_SVC_StartObservation_CycleDetection(signal* signalName, double aMinValue, double aMaxValue, 
+                                                     enum eChangeExpected IsValueInsideRangeExpected,
+                                                     dword expectedCycles, 
+                                                     enum eChangeExpected stopCanoeOnCycleReached)
+{
+  #pragma warning(disable: 2038)
+  
+  // Initialize range parameters
+  gExpectedMinValue = aMinValue;
+  gExpectedMaxValue = aMaxValue;
+  gIsValueInsideRangeExpected = IsValueInsideRangeExpected;
+  
+  // Initialize cycle tracking
+  gChangeResult = 0;
+  gCompleteCycleCount = 0;
+  gExpectedCycles = expectedCycles;
+  gStopCanoeOnCycleReached = stopCanoeOnCycleReached;
+  gCurrentState = STATE_NORMAL;
+  gViolationStartTime = 0;
+  gRecoveryStartTime = 0;
+  gLastViolationEndTime = 0;
+  gExpectedCycleIntervalMs = 0;
+  gCycleIntervalToleranceMs = 0;
+  gMinRecoveryDurationMs = 0;
+  gUserExpectation = YES;
+  gStartTimestamp = timeNowInt64() / 100000;
+  
+  // Validate input parameters
+  if (aMinValue > aMaxValue)
+  {
+    testStepFail("WrongInput", "Lib_SVC_StartObservation_CycleDetection()! should be aMinValue (%ld) <= aMaxValue (%ld)", aMinValue, aMaxValue);
+    return;
+  }
+  
+  if (expectedCycles == 0)
+  {
+    testStepFail("WrongInput", "Lib_SVC_StartObservation_CycleDetection()! expectedCycles must be greater than 0");
+    return;
+  }
+  
+  // Start the check with cycle detection callback
+  if (IsValueInsideRangeExpected == YES)
+  {
+    gCheckID_VC = ChkStart_MsgSignalValueRangeViolation (signalName, aMinValue, aMaxValue, "SVC_CAPL_Callback_Signal_Value_Range_CycleDetection");
+  }
+  else
+  {
+    gCheckID_VC = ChkStart_MsgSignalValueInvalid (signalName, aMinValue, aMaxValue, "SVC_CAPL_Callback_Signal_Value_Range_CycleDetection");
+  }
+   
+  if (!gCheckID_VC)
+  {
+    testStepFail("", "Signal cycle detection could not start, Signal not available OR CAPL callback does not exist");
+    return;
+  }
+  
+  testAddCondition(gCheckID_VC, VerdictNotExpected);
+  testStep("Observation", "Cycle detection started for Signal : \"%s\" (Range: %ld...%ld, Expected cycles: %d, Stop CANoe: %d)", 
+           signalName.name, aMinValue, aMaxValue, expectedCycles, stopCanoeOnCycleReached);
+}
+
+/// <StartObservation_CycleDetection/Signal>
+/**
+ * @brief Starts cycle detection observation with interval validation for a signal.
+*
+*///***************************************************************************** 
+export void Lib_SVC_StartObservation_CycleDetection(signal* signalName, double aMinValue, double aMaxValue, 
+                                                     enum eChangeExpected IsValueInsideRangeExpected,
+                                                     dword expectedCycles, 
+                                                     enum eChangeExpected stopCanoeOnCycleReached,
+                                                     dword expectedCycleIntervalMs,
+                                                     dword cycleIntervalToleranceMs)
+{
+  #pragma warning(disable: 2038)
+  
+  // Initialize range parameters
+  gExpectedMinValue = aMinValue;
+  gExpectedMaxValue = aMaxValue;
+  gIsValueInsideRangeExpected = IsValueInsideRangeExpected;
+  
+  // Initialize cycle tracking with interval validation
+  gChangeResult = 0;
+  gCompleteCycleCount = 0;
+  gExpectedCycles = expectedCycles;
+  gStopCanoeOnCycleReached = stopCanoeOnCycleReached;
+  gCurrentState = STATE_NORMAL;
+  gViolationStartTime = 0;
+  gRecoveryStartTime = 0;
+  gLastViolationEndTime = 0;
+  gExpectedCycleIntervalMs = expectedCycleIntervalMs;
+  gCycleIntervalToleranceMs = cycleIntervalToleranceMs;
+  gMinRecoveryDurationMs = 0;
+  gUserExpectation = YES;
+  gStartTimestamp = timeNowInt64() / 100000;
+  
+  // Validate input parameters
+  if (aMinValue > aMaxValue)
+  {
+    testStepFail("WrongInput", "Lib_SVC_StartObservation_CycleDetection()! should be aMinValue (%ld) <= aMaxValue (%ld)", aMinValue, aMaxValue);
+    return;
+  }
+  
+  if (expectedCycles == 0)
+  {
+    testStepFail("WrongInput", "Lib_SVC_StartObservation_CycleDetection()! expectedCycles must be greater than 0");
+    return;
+  }
+  
+  // Start the check with cycle detection callback
+  if (IsValueInsideRangeExpected == YES)
+  {
+    gCheckID_VC = ChkStart_MsgSignalValueRangeViolation (signalName, aMinValue, aMaxValue, "SVC_CAPL_Callback_Signal_Value_Range_CycleDetection");
+  }
+  else
+  {
+    gCheckID_VC = ChkStart_MsgSignalValueInvalid (signalName, aMinValue, aMaxValue, "SVC_CAPL_Callback_Signal_Value_Range_CycleDetection");
+  }
+   
+  if (!gCheckID_VC)
+  {
+    testStepFail("", "Signal cycle detection could not start, Signal not available OR CAPL callback does not exist");
+    return;
+  }
+  
+  testAddCondition(gCheckID_VC, VerdictNotExpected);
+  testStep("Observation", "Cycle detection started for Signal : \"%s\" (Range: %ld...%ld, Expected cycles: %d, Interval: %d ms ± %d ms)", 
+           signalName.name, aMinValue, aMaxValue, expectedCycles, expectedCycleIntervalMs, cycleIntervalToleranceMs);
+}
+
+/// <StartObervation>
+/**
+* @brief Stops the background observation of signal or system variable value changes.
+*
+* @details Removes the test condition associated with the current observation and logs the stop event.
+*
+* @verdict Failed to stop to Observation \n
+*          Passed Successfully stopped background observation
+*///*****************************************************************************
+export void Lib_SVC_StopObservation()
+{
+  long ret;
+  ret = testRemoveCondition(gCheckID_VC);
+  
+  if (ret == 0)
+    testStep("Observation", "Background check of Stopped.");
+  else
+    testStepFail("Observation", "Background check does not Stopped. Constraint could not be removed");
+  
+  // stop the check
+  ChkControl_Stop(gCheckID_VC);
+
+  // reset stored values of the check
+  ChkControl_Destroy(gCheckID_VC);
+}
+
+/// <StartObervation>
+/**
+* @brief Validates whether a value change occurred during the observation period.
+*
+* @param[in] IsChangeExpected YES if a change was expected, NO otherwise.
+*
+* @details Checks if the observed value change matches the expectation and reports the result as a test step pass or fail. 
+*
+*///*****************************************************************************
+export void Lib_SVC_ValidateResult(enum eChangeExpected IsChangeExpected)
+{
+  if (IsChangeExpected == 1)
+  {
+    if(gChangeResult)
+      testStepPass("Validation", "Signal Or SysVaribale value has change as Expected");
+    else
+      testStepFail("Validation", "Signal Or SysVaribale value has NOT change as Expected"); 
+  }
+  else
+  {
+    if(gChangeResult == 0)
+      testStepPass("Validation", "Signal Or SysVaribale value has NOT change as Expected");
+    else
+      testStepFail("Validation", "Signal Or SysVaribale value has change which is not Expected");
+  }
+}
+
+/// <StratObservation_CountTime>
+/**
+* @brief Validates whether value changes occurred with expected count and within time window.
+*
+* @param[in] IsChangeExpected - YES if changes were expected, NO otherwise
+* @param[in] minCount - Minimum expected count (use same as maxCount for exact count)
+* @param[in] maxCount - Maximum expected count
+*
+* @details Validates that the number of changes falls within the expected range.
+*          Reports detailed information about change count.
+*
+*///*****************************************************************************
+export void Lib_SVC_ValidateResultWithCount(enum eChangeExpected IsChangeExpected, dword minCount, dword maxCount)
+{
+  dword currentTime;
+  dword totalElapsedTime;
+  
+  currentTime = timeNowInt64() / 100000;
+  totalElapsedTime = currentTime - gStartTimestamp;
+  
+  if (IsChangeExpected == 1)
+  {
+    if (gChangeCount >= minCount && gChangeCount <= maxCount)
+    {
+      testStepPass("Validation", "Change count (%d) is within expected range [%d, %d]. Total observation time: %d ms", 
+                   gChangeCount, minCount, maxCount, totalElapsedTime);
+    }
+    else
+    {
+      testStepFail("Validation", "Change count (%d) is NOT within expected range [%d, %d]. Total observation time: %d ms", 
+                   gChangeCount, minCount, maxCount, totalElapsedTime);
+    }
+  }
+  else
+  {
+    if (gChangeCount < minCount || gChangeCount > maxCount)
+    {
+      testStepPass("Validation", "Change count (%d) is outside expected range [%d, %d] as expected. Total observation time: %d ms", 
+                   gChangeCount, minCount, maxCount, totalElapsedTime);
+    }
+    else
+    {
+      testStepFail("Validation", "Change count (%d) is within range [%d, %d] but was not expected. Total observation time: %d ms", 
+                   gChangeCount, minCount, maxCount, totalElapsedTime);
+    }
+  }
+}
+
+/// <StratObservation_CountTime>
+/**
+* @brief Validates value changes with both count and time window constraints.
+*
+* @param[in] IsChangeExpected - YES if changes meeting criteria were expected, NO otherwise
+* @param[in] expectedCount - Expected number of changes
+* @param[in] maxTimeWindowMs - Maximum time window in milliseconds (0 = no time constraint)
+*
+* @details Comprehensive validation checking:
+*          1. Whether expected count was reached
+*          2. Whether changes occurred within the time window
+*          3. Time between first and last change
+*          
+*          This function should be called after Lib_SVC_StartObservation() with count/time parameters.
+*
+* @example
+*          Lib_SVC_StartObservation(@sysvar::MyVar, 10, 50, NO, 3, 5000);
+*          testWaitForTimeout(6000);  // Wait for potential changes
+*          Lib_SVC_ValidateResultWithCountAndTime(YES, 3, 5000);  // Validate 3 changes within 5000ms
+*
+*///*****************************************************************************
+export void Lib_SVC_ValidateResultWithCountAndTime(enum eChangeExpected IsChangeExpected, dword expectedCount, dword maxTimeWindowMs)
+{
+  dword currentTime;
+  dword totalElapsedTime;
+  dword changeDuration;
+  
+  currentTime = timeNowInt64() / 100000;
+  totalElapsedTime = currentTime - gStartTimestamp;
+  
+  // Calculate time between FIRST and LAST change (key requirement)
+  if (gChangeCount >= 2 && gFirstChangeTimestamp > 0 && gLastChangeTimestamp > 0)
+  {
+    changeDuration = gLastChangeTimestamp - gFirstChangeTimestamp;
+  }
+  else if (gChangeCount == 1)
+  {
+    changeDuration = 0; // Only one change, no duration
+  }
+  else
+  {
+    changeDuration = 0; // No changes yet
+  }
+  
+  if (IsChangeExpected == 1)
+  {
+    // Expected changes to occur
+    if (gChangeCount >= expectedCount)
+    {
+      // Check time window constraint between FIRST and LAST change
+      if (maxTimeWindowMs == 0 || changeDuration <= maxTimeWindowMs)
+      {
+        testStepPass("Validation", "SUCCESS: %d changes occurred (expected: %d). Duration from FIRST to LAST change: %d ms (limit: %d ms) - WITHIN TIME WINDOW", 
+                     gChangeCount, expectedCount, changeDuration, maxTimeWindowMs);
+      }
+      else
+      {
+        testStepFail("Validation", "FAIL: %d changes occurred (expected: %d) but duration EXCEEDED. Duration: %d ms (limit: %d ms)", 
+                     gChangeCount, expectedCount, changeDuration, maxTimeWindowMs);
+      }
+    }
+    else
+    {
+      testStepFail("Validation", "FAIL: Only %d changes occurred (expected: %d). Duration from first to last: %d ms, Total observation time: %d ms", 
+                   gChangeCount, expectedCount, changeDuration, totalElapsedTime);
+    }
+  }
+  else
+  {
+    // Expected NO changes or changes outside criteria
+    if (gChangeCount < expectedCount)
+    {
+      testStepPass("Validation", "SUCCESS: Only %d changes occurred (less than: %d) as expected. Total observation time: %d ms", 
+                   gChangeCount, expectedCount, totalElapsedTime);
+    }
+    else if (maxTimeWindowMs > 0 && changeDuration > maxTimeWindowMs)
+    {
+      testStepPass("Validation", "SUCCESS: %d changes occurred but duration exceeded (%d ms > %d ms) as expected", 
+                   gChangeCount, changeDuration, maxTimeWindowMs);
+    }
+    else
+    {
+      testStepFail("Validation", "FAIL: %d changes occurred with duration %d ms (expected: NOT to meet criteria). Total time: %d ms", 
+                   gChangeCount, changeDuration, totalElapsedTime);
+    }
+  }
+}
+
+/// <StratObservation_CountTime>
+/**
+* @brief Gets the current change count during observation.
+*
+* @return dword - Current number of changes detected
+*
+* @details Allows checking the change count without stopping or validating the observation.
+*          Useful for conditional test logic based on change count.
+*
+*///*****************************************************************************
+export dword Lib_SVC_GetChangeCount()
+{
+  return gChangeCount;
+}
+
+/// <StratObservation_CountTime>
+/**
+* @brief Gets the elapsed time since observation started.
+*
+* @return dword - Elapsed time in milliseconds
+*
+* @details Returns the time elapsed since Lib_SVC_StartObservation() was called.
+*
+*///*****************************************************************************
+export dword Lib_SVC_GetElapsedTime()
+{
+  dword currentTime;
+  currentTime = timeNowInt64() / 100000;
+  return (currentTime - gStartTimestamp);
+}
+
+/// <StratObservation_CountTime>
+/**
+* @brief Gets the time duration between first and last change.
+*
+* @return dword - Duration in milliseconds (0 if no changes occurred)
+*
+* @details Returns the time span from the first detected change to the last detected change.
+*          Returns 0 if less than 2 changes have occurred.
+*
+*///*****************************************************************************
+export dword Lib_SVC_GetChangeDuration()
+{
+  if (gChangeCount >= 2 && gFirstChangeTimestamp > 0 && gLastChangeTimestamp > 0)
+  {
+    return (gLastChangeTimestamp - gFirstChangeTimestamp);
+  }
+  return 0;
+}
+
+/// <StartObservation_CycleDetection>
+//! ==================== CYCLE DETECTION VALIDATION AND HELPERS ====================
+
+/**
+* @brief Validates whether complete cycles occurred as expected.
+*
+* @param[in] IsChangeExpected - YES if cycles were expected, NO otherwise
+* @param[in] expectedCycles - Expected number of complete cycles
+*
+* @details Checks if the observed complete cycle count matches the expectation.
+*          A complete cycle = violation occurs → signal returns to normal.
+*          Reports detailed test results including cycle count and timing information.
+*
+* @example
+*          Lib_SVC_StartObservation_CycleDetection(@sysvar::Voltage, 5, 100, YES, 3, NO);
+*          testWaitForTimeout(60000);  // Wait for cycles to occur
+*          Lib_SVC_ValidateResultWithCycles(YES, 3);  // Validate 3 cycles occurred
+*
+*///*****************************************************************************
+export void Lib_SVC_ValidateResultWithCycles(enum eChangeExpected IsChangeExpected, dword expectedCycles)
+{
+  dword currentTime;
+  dword totalElapsedTime;
+  
+  currentTime = timeNowInt64() / 100000;
+  totalElapsedTime = currentTime - gStartTimestamp;
+  
+  if (IsChangeExpected == YES)
+  {
+    if (gCompleteCycleCount >= expectedCycles)
+    {
+      testStepPass("Validation", "Expected cycle count REACHED: %d complete cycles detected (expected: %d). Total observation time: %d ms", 
+                   gCompleteCycleCount, expectedCycles, totalElapsedTime);
+    }
+    else
+    {
+      testStepFail("Validation", "Expected cycle count NOT reached: only %d complete cycles detected (expected: %d). Total observation time: %d ms", 
+                   gCompleteCycleCount, expectedCycles, totalElapsedTime);
+    }
+  }
+  else
+  {
+    if (gCompleteCycleCount < expectedCycles)
+    {
+      testStepPass("Validation", "Cycles did NOT reach threshold as expected: %d complete cycles detected (threshold: %d). Total observation time: %d ms", 
+                   gCompleteCycleCount, expectedCycles, totalElapsedTime);
+    }
+    else
+    {
+      testStepFail("Validation", "Cycles REACHED threshold unexpectedly: %d complete cycles detected (threshold: %d). Total observation time: %d ms", 
+                   gCompleteCycleCount, expectedCycles, totalElapsedTime);
+    }
+  }
+}
+
+/// <StartObservation_CycleDetection>
+/**
+* @brief Validates cycles with interval checking.
+*
+* @param[in] IsChangeExpected - YES if cycles were expected, NO otherwise
+* @param[in] expectedCycles - Expected number of complete cycles
+* @param[in] expectedIntervalMs - Expected interval between cycles in milliseconds
+* @param[in] toleranceMs - Tolerance for interval validation in milliseconds
+*
+* @details Enhanced validation that checks both cycle count and timing intervals.
+*          Useful for detecting periodic patterns (e.g., signal drops every 10 seconds).
+*
+*///*****************************************************************************
+export void Lib_SVC_ValidateResultWithCyclesAndInterval(enum eChangeExpected IsChangeExpected, 
+                                                        dword expectedCycles, 
+                                                        dword expectedIntervalMs, 
+                                                        dword toleranceMs)
+{
+  dword currentTime;
+  dword totalElapsedTime;
+  dword averageInterval;
+  
+  currentTime = timeNowInt64() / 100000;
+  totalElapsedTime = currentTime - gStartTimestamp;
+  
+  // Calculate average interval if we have multiple cycles
+  if (gCompleteCycleCount > 1 && gFirstChangeTimestamp > 0 && gLastViolationEndTime > 0)
+  {
+    averageInterval = (gLastViolationEndTime - gFirstChangeTimestamp) / (gCompleteCycleCount - 1);
+  }
+  else
+  {
+    averageInterval = 0;
+  }
+  
+  if (IsChangeExpected == YES)
+  {
+    if (gCompleteCycleCount >= expectedCycles)
+    {
+      // Check interval if we have enough cycles
+      if (gCompleteCycleCount > 1)
+      {
+        dword intervalDiff;
+        if (averageInterval > expectedIntervalMs)
+          intervalDiff = averageInterval - expectedIntervalMs;
+        else
+          intervalDiff = expectedIntervalMs - averageInterval;
+        
+        if (intervalDiff <= toleranceMs)
+        {
+          testStepPass("Validation", "Cycles detected with correct interval: %d cycles, avg interval: %d ms (expected: %d ms ± %d ms). Observation time: %d ms", 
+                       gCompleteCycleCount, averageInterval, expectedIntervalMs, toleranceMs, totalElapsedTime);
+        }
+        else
+        {
+          testStepFail("Validation", "Cycles detected but interval OUT OF TOLERANCE: %d cycles, avg interval: %d ms (expected: %d ms ± %d ms). Observation time: %d ms", 
+                       gCompleteCycleCount, averageInterval, expectedIntervalMs, toleranceMs, totalElapsedTime);
+        }
+      }
+      else
+      {
+        testStepPass("Validation", "Expected cycle count reached: %d complete cycles (expected: %d). Observation time: %d ms", 
+                     gCompleteCycleCount, expectedCycles, totalElapsedTime);
+      }
+    }
+    else
+    {
+      testStepFail("Validation", "Expected cycle count NOT reached: only %d complete cycles (expected: %d). Observation time: %d ms", 
+                   gCompleteCycleCount, expectedCycles, totalElapsedTime);
+    }
+  }
+  else
+  {
+    if (gCompleteCycleCount < expectedCycles)
+    {
+      testStepPass("Validation", "Cycles did NOT reach threshold as expected: %d complete cycles (threshold: %d). Observation time: %d ms", 
+                   gCompleteCycleCount, expectedCycles, totalElapsedTime);
+    }
+    else
+    {
+      testStepFail("Validation", "Cycles REACHED threshold unexpectedly: %d complete cycles (threshold: %d). Observation time: %d ms", 
+                   gCompleteCycleCount, expectedCycles, totalElapsedTime);
+    }
+  }
+}
+
+/// <StartObservation_CycleDetection>
+/**
+* @brief Gets the current complete cycle count.
+*
+* @return dword - Current number of complete cycles detected
+*
+* @details Returns the count of complete violation→recovery cycles.
+*          Useful for checking progress without stopping observation.
+*
+*///*****************************************************************************
+export dword Lib_SVC_GetCompleteCycleCount()
+{
+  return gCompleteCycleCount;
+}
+
+/// <StartObservation_CycleDetection>
+/**
+* @brief Gets the current observation state.
+*
+* @return dword - Current state (0=NORMAL, 1=VIOLATED)
+*
+* @details Returns whether the signal/variable is currently in normal range or violation.
+*          0 = STATE_NORMAL (within expected range)
+*          1 = STATE_VIOLATED (outside expected range)
+*
+*///*****************************************************************************
+export dword Lib_SVC_GetCurrentState()
+{
+  return gCurrentState;
+}
+
+/// <StartObservation_CycleDetection>
+/**
+* @brief Gets the time of the last completed cycle (when signal returned to normal).
+*
+* @return dword - Timestamp in milliseconds (0 if no cycles completed)
+*
+* @details Returns the timestamp when the last cycle was completed (recovery occurred).
+*
+*///*****************************************************************************
+export dword Lib_SVC_GetLastCycleCompletionTime()
+{
+  return gLastViolationEndTime;
+}
+
+/// <StartObservation_CycleDetection>
+/**
+* @brief Gets the timestamp when the current/last violation started.
+*
+* @return dword - Timestamp in milliseconds (0 if no violation occurred)
+*
+*///*****************************************************************************
+export dword Lib_SVC_GetViolationStartTime()
+{
+  return gViolationStartTime;
+}
+
+/// <StartObservation_CycleDetection>
+/**
+* @brief Resets cycle detection counters and state.
+*
+* @details Useful for restarting cycle detection without stopping/restarting observation.
+*          Resets: cycle count, state, timestamps.
+*          Note: Does NOT stop the background observation.
+*
+*///*****************************************************************************
+export void Lib_SVC_ResetCycleDetection()
+{
+  gCompleteCycleCount = 0;
+  gCurrentState = STATE_NORMAL;
+  gViolationStartTime = 0;
+  gRecoveryStartTime = 0;
+  gLastViolationEndTime = 0;
+  gChangeResult = 0;
+  gStartTimestamp = timeNowInt64() / 100000;
+  
+  testStep("Reset", "Cycle detection counters and state have been reset");
+}
+
+/// <StartParallelObservation>
+//! ==================== PARALLEL OBSERVATION SUPPORT ====================
+
+//! Helper function to find an available observation slot
+dword FindAvailableObservationSlot()
+{
+  dword i;
+  for (i = 0; i < kMaxParallelObservations; i++)
+  {
+    if (!gObservations[i].isActive)
+    {
+      return i;
+    }
+  }
+  return kMaxParallelObservations; // No slot available
+}
+
+/// <StartParallelObservation>
+//! Helper function to store observation name
+void StoreObservationName(dword slotIndex, char observedName[])
+{
+  long i;
+  long len;
+  len = strlen(observedName);
+  if (len > 255) len = 255;
+  
+  for (i = 0; i < len; i++)
+  {
+    gObservations[slotIndex].observedName[i] = observedName[i];
+  }
+  gObservations[slotIndex].observedName[len] = 0; // Null terminator
+}
+
+/// <StartParallelObservation/SysInt>
+/**
+ * @brief Starts parallel background observation for value changes of an integer system variable.
+*
+* @param[in] sysVarName - Int dataType System Variable Name
+*
+ * @return dword - Observation handle (slot index) for stopping or validating later
+ * @details Initiates monitoring for any value change of the specified integer system variable in parallel mode.
+ *          Returns a handle that can be used to stop or validate this specific observation.
+ *
+* @verdict Failed to start background observation \n
+*          Passed Successfully started background observation
+*///***************************************************************************** 
+export dword Lib_SVC_StartParallelObservation(sysvarInt* sysVarName)
+{
+  dword slotIndex;
+  dword checkID;
+  
+  #pragma warning(disable: 2038)
+  
+  slotIndex = FindAvailableObservationSlot();
+  
+  if (slotIndex >= kMaxParallelObservations)
+  {
+    testStepFail("", "No available observation slots. Maximum %d parallel observations supported.", kMaxParallelObservations);
+    return kMaxParallelObservations;
+  }
+  
+  // Initialize observation context
+  gObservations[slotIndex].changeResult = 0;
+  gObservations[slotIndex].isActive = 1;
+  StoreObservationName(slotIndex, sysVarName.name);
+  
+  // Start the check
+  checkID = chkStart_SignalValueChange(sysVarName, "SVC_CAPL_Callback_Sys_Parallel");
+  
+  if (!checkID)
+  {
+    gObservations[slotIndex].isActive = 0;
+    testStepFail("", "System Variable Value change could not start, System Variable not available OR CAPL callback does not exist");
+    return kMaxParallelObservations;
+  }
+  
+  gObservations[slotIndex].checkID = checkID;
+  testAddCondition(checkID, VerdictNotExpected); 
+  testStep("Observation", "Parallel background check [Handle: %d] of System variable : \"%s\" started", slotIndex, sysVarName.name);
+  
+  return slotIndex;
+}
+
+/// <StartParallelObservation/SysInt>
+/**
+ * @brief Starts parallel background observation for a specific value change of an integer system variable.
+*
+* @param[in] sysVarName - Int dataType System Variable Name
+* @param[in] variableValue - Expected variable value change
+*
+ * @return dword - Observation handle (slot index) for stopping or validating later
+ *
+ * @details Initiates monitoring for a specific value change of the given integer system variable in parallel mode.
+ *
+* @verdict Failed to start background observation \n
+*          Passed Successfully started background observation
+*///***************************************************************************** 
+export dword Lib_SVC_StartParallelObservation(sysvarInt* sysVarName, long variableValue)
+{
+  dword slotIndex;
+  dword checkID;
+  
+  #pragma warning(disable: 2038)
+  
+  slotIndex = FindAvailableObservationSlot();
+  
+  if (slotIndex >= kMaxParallelObservations)
+  {
+    testStepFail("", "No available observation slots. Maximum %d parallel observations supported.", kMaxParallelObservations);
+    return kMaxParallelObservations;
+  }
+  
+  // Initialize observation context
+  gObservations[slotIndex].expectedValue = variableValue;
+  gObservations[slotIndex].changeResult = 0;
+  gObservations[slotIndex].isActive = 1;
+  StoreObservationName(slotIndex, sysVarName.name);
+  
+  // Start the check
+  checkID = chkStart_SignalValueChange(sysVarName, "SVC_CAPL_Callback_Sys_Value_Parallel");
+  
+  if (!checkID)
+  {
+    gObservations[slotIndex].isActive = 0;
+    testStepFail("", "System Variable Value change could not start, System Variable not available OR CAPL callback does not exist");
+    return kMaxParallelObservations;
+  }
+  
+  gObservations[slotIndex].checkID = checkID;
+  testAddCondition(checkID, VerdictNotExpected);
+  testStep("Observation", "Parallel background check [Handle: %d] of System variable : \"%s\" started for value %d", slotIndex, sysVarName.name, variableValue);
+  
+  return slotIndex;
+}
+
+/// <StartParallelObservation/SysInt>
+/**
+ * @brief Starts parallel background observation for an integer system variable to check if its value is inside or outside a specified range.
+*
+* @param[in] sysVarName - Int dataType System Variable Name
+* @param[in] aMinValue - aMinValue <= aMaxValue
+* @param[in] aMaxValue - aMinValue <= aMaxValue
+ * @param[in] IsValueInsideRangeExpected YES if value should be inside the range, NO if outside.
+*
+ * @return dword - Observation handle (slot index) for stopping or validating later
+ *
+ * @details Initiates monitoring for the system variable to check if its value enters or leaves the specified range in parallel mode.
+ *
+* @verdict Failed to start background observation \n
+*          Passed Successfully started background observation
+*///***************************************************************************** 
+export dword Lib_SVC_StartParallelObservation(sysvarInt* sysVarName, double aMinValue, double aMaxValue, dword IsValueInsideRangeExpected)
+{
+  dword slotIndex;
+  dword checkID;
+  
+  #pragma warning(disable: 2038)
+  
+  slotIndex = FindAvailableObservationSlot();
+  
+  if (slotIndex >= kMaxParallelObservations)
+  {
+    testStepFail("", "No available observation slots. Maximum %d parallel observations supported.", kMaxParallelObservations);
+    return kMaxParallelObservations;
+  }
+  
+  if (aMinValue > aMaxValue)
+  {
+    testStepFail("WrongInput", "Lib_SVC_StartParallelObservation()! should be aMinValue (%ld) <= aMaxValue (%ld)", aMinValue, aMaxValue);
+    return kMaxParallelObservations;
+  }
+  
+  // Initialize observation context
+  gObservations[slotIndex].expectedMinValue = aMinValue;
+  gObservations[slotIndex].expectedMaxValue = aMaxValue;
+  gObservations[slotIndex].isValueInsideRangeExpected = IsValueInsideRangeExpected;
+  gObservations[slotIndex].changeResult = 0;
+  gObservations[slotIndex].isActive = 1;
+  StoreObservationName(slotIndex, sysVarName.name);
+  
+  // Start the check
+  if (IsValueInsideRangeExpected == 1)
+  {
+    checkID = ChkStart_MsgSignalValueRangeViolation(sysVarName, aMinValue, aMaxValue, "SVC_CAPL_Callback_Sys_Value_Range_Parallel");
+  }
+  else
+  {
+    checkID = ChkStart_MsgSignalValueInvalid(sysVarName, aMinValue, aMaxValue, "SVC_CAPL_Callback_Sys_Value_Range_Parallel");
+  }
+   
+  if (!checkID)
+  {
+    gObservations[slotIndex].isActive = 0;
+    testStepFail("", "System Variable Value change could not start, System Variable not available OR CAPL callback does not exist");
+    return kMaxParallelObservations;
+  }
+  
+  gObservations[slotIndex].checkID = checkID;
+  testAddCondition(checkID, VerdictNotExpected);
+  testStep("Observation", "Parallel background check [Handle: %d] of System variable : \"%s\" started for value range (%ld ... %ld)", slotIndex, sysVarName.name, aMinValue, aMaxValue);
+  
+  return slotIndex;
+}
+
+/// <StartParallelObservation/SysFloat>
+/**
+ * @brief Starts parallel background observation for value changes of a float system variable.
+*
+* @param[in] sysVarName - Float dataTye System Variable Name
+*
+ * @return dword - Observation handle (slot index) for stopping or validating later
+ *
+ * @details Initiates monitoring for any value change of the specified float system variable in parallel mode.
+*
+* @verdict Failed to start background observation \n
+*          Passed Successfully started background observation
+*///***************************************************************************** 
+export dword Lib_SVC_StartParallelObservation(sysvarFloat* sysVarName)
+{
+  dword slotIndex;
+  dword checkID;
+  
+  #pragma warning(disable: 2038)
+  
+  slotIndex = FindAvailableObservationSlot();
+  
+  if (slotIndex >= kMaxParallelObservations)
+  {
+    testStepFail("", "No available observation slots. Maximum %d parallel observations supported.", kMaxParallelObservations);
+    return kMaxParallelObservations;
+  }
+  
+  // Initialize observation context
+  gObservations[slotIndex].changeResult = 0;
+  gObservations[slotIndex].isActive = 1;
+  StoreObservationName(slotIndex, sysVarName.name);
+  
+  // Start the check
+  checkID = chkStart_SignalValueChange(sysVarName, "SVC_CAPL_Callback_Sys_Parallel");
+  
+  if (!checkID)
+  {
+    gObservations[slotIndex].isActive = 0;
+    testStepFail("", "System Variable Value change could not start, System Variable not available OR CAPL callback does not exist");
+    return kMaxParallelObservations;
+  }
+  
+  gObservations[slotIndex].checkID = checkID;
+  testAddCondition(checkID, VerdictNotExpected); 
+  testStep("Observation", "Parallel background check [Handle: %d] of System variable : \"%s\" started", slotIndex, sysVarName.name);
+  
+  return slotIndex;
+}
+
+/// <StartParallelObservation/SysFloat>
+/**
+ * @brief Starts parallel background observation for a specific value change of a float system variable.
+*
+* @param[in] sysVarName - Float dataTye System Variable Name
+* @param[in] variableValue - Expected variable value change
+*
+ * @return dword - Observation handle (slot index) for stopping or validating later
+ *
+ * @details Initiates monitoring for a specific value change of the given float system variable in parallel mode.
+*
+* @verdict Failed to start background observation \n
+*          Passed Successfully started background observation
+*///***************************************************************************** 
+export dword Lib_SVC_StartParallelObservation(sysvarFloat* sysVarName, long variableValue)
+{
+  dword slotIndex;
+  dword checkID;
+  
+  #pragma warning(disable: 2038)
+  
+  slotIndex = FindAvailableObservationSlot();
+  
+  if (slotIndex >= kMaxParallelObservations)
+  {
+    testStepFail("", "No available observation slots. Maximum %d parallel observations supported.", kMaxParallelObservations);
+    return kMaxParallelObservations;
+  }
+  
+  // Initialize observation context
+  gObservations[slotIndex].expectedValue = variableValue;
+  gObservations[slotIndex].changeResult = 0;
+  gObservations[slotIndex].isActive = 1;
+  StoreObservationName(slotIndex, sysVarName.name);
+  
+  // Start the check
+  checkID = chkStart_SignalValueChange(sysVarName, "SVC_CAPL_Callback_Sys_Value_Parallel");
+  
+  if (!checkID)
+  {
+    gObservations[slotIndex].isActive = 0;
+    testStepFail("", "System Variable Value change could not start, System Variable not available OR CAPL callback does not exist");
+    return kMaxParallelObservations;
+  }
+  
+  gObservations[slotIndex].checkID = checkID;
+  testAddCondition(checkID, VerdictNotExpected); 
+  testStep("Observation", "Parallel background check [Handle: %d] of System variable : \"%s\" started for value %d", slotIndex, sysVarName.name, variableValue);
+  
+  return slotIndex;
+}
+
+/// <StartParallelObservation/SysFloat>
+/**
+ * @brief Starts parallel background observation for a float system variable to check if its value is inside or outside a specified range.
+*
+* @param[in] sysVarName - Float dataType System Variable Name
+* @param[in] aMinValue - aMinValue <= aMaxValue
+* @param[in] aMaxValue - aMinValue <= aMaxValue
+* @param[in] IsValueInsideRangeExpected - YES or NO. If expected then YES
+*
+ * @return dword - Observation handle (slot index) for stopping or validating later
+ *
+ * @details Initiates monitoring for the system variable to check if its value enters or leaves the specified range in parallel mode.
+ *
+* @verdict Failed to start background observation \n
+*          Passed Successfully started background observation
+*///***************************************************************************** 
+export dword Lib_SVC_StartParallelObservation(sysvarFloat* sysVarName, double aMinValue, double aMaxValue, dword IsValueInsideRangeExpected)
+{
+  dword slotIndex;
+  dword checkID;
+  
+  #pragma warning(disable: 2038)
+  
+  slotIndex = FindAvailableObservationSlot();
+  
+  if (slotIndex >= kMaxParallelObservations)
+  {
+    testStepFail("", "No available observation slots. Maximum %d parallel observations supported.", kMaxParallelObservations);
+    return kMaxParallelObservations;
+  }
+  
+  if (aMinValue > aMaxValue)
+  {
+    testStepFail("WrongInput", "Lib_SVC_StartParallelObservation()! should be aMinValue (%ld) <= aMaxValue (%ld)", aMinValue, aMaxValue);
+    return kMaxParallelObservations;
+  }
+  
+  // Initialize observation context
+  gObservations[slotIndex].expectedMinValue = aMinValue;
+  gObservations[slotIndex].expectedMaxValue = aMaxValue;
+  gObservations[slotIndex].isValueInsideRangeExpected = IsValueInsideRangeExpected;
+  gObservations[slotIndex].changeResult = 0;
+  gObservations[slotIndex].isActive = 1;
+  StoreObservationName(slotIndex, sysVarName.name);
+  
+  // Start the check
+  if (IsValueInsideRangeExpected == 1)
+  {
+    checkID = ChkStart_MsgSignalValueRangeViolation(sysVarName, aMinValue, aMaxValue, "SVC_CAPL_Callback_Sys_Value_Range_Parallel");
+  }
+  else
+  {
+    checkID = ChkStart_MsgSignalValueInvalid(sysVarName, aMinValue, aMaxValue, "SVC_CAPL_Callback_Sys_Value_Range_Parallel");
+  }
+   
+  if (!checkID)
+  {
+    gObservations[slotIndex].isActive = 0;
+    testStepFail("", "System Variable Value change could not start, System Variable not available OR CAPL callback does not exist");
+    return kMaxParallelObservations;
+  }
+  
+  gObservations[slotIndex].checkID = checkID;
+  testAddCondition(checkID, VerdictNotExpected);
+  testStep("Observation", "Parallel background check [Handle: %d] of System variable : \"%s\" started for value range (%ld ... %ld)", slotIndex, sysVarName.name, aMinValue, aMaxValue);
+  
+  return slotIndex;
+}
+
+/// <StartParallelObservation/Signal>
+/**
+ * @brief Starts parallel background observation for value changes of a signal.
+*
+* @param[in] signalName - Signal Name which want to observe
+*
+ * @return dword - Observation handle (slot index) for stopping or validating later
+ *
+ * @details Initiates monitoring for any value change of the specified signal in parallel mode.
+ *
+* @verdict Failed to start background observation \n
+*          Passed Successfully started background observation
+*///*****************************************************************************
+export dword Lib_SVC_StartParallelObservation(signal* signalName)
+{
+  dword slotIndex;
+  dword checkID;
+  
+  #pragma warning(disable: 2038)
+  
+  slotIndex = FindAvailableObservationSlot();
+  
+  if (slotIndex >= kMaxParallelObservations)
+  {
+    testStepFail("", "No available observation slots. Maximum %d parallel observations supported.", kMaxParallelObservations);
+    return kMaxParallelObservations;
+  }
+  
+  // Initialize observation context
+  gObservations[slotIndex].changeResult = 0;
+  gObservations[slotIndex].isActive = 1;
+  StoreObservationName(slotIndex, signalName.name);
+  
+  // Start the check
+  checkID = chkStart_SignalValueChange(signalName, "SVC_CAPL_Callback_Signal_Parallel");
+  
+  if (!checkID)
+  {
+    gObservations[slotIndex].isActive = 0;
+    testStepFail("", "Signal Value change could not start, Signal is not mapped to message OR CAPL callback does not exist");
+    return kMaxParallelObservations;
+  }
+  
+  gObservations[slotIndex].checkID = checkID;
+  testAddCondition(checkID, VerdictNotExpected);
+  testStep("Observation", "Parallel background check [Handle: %d] of Signal : \"%s\" started", slotIndex, signalName.name);
+  
+  return slotIndex;
+}
+
+/// <StartParallelObservation/Signal>
+/**
+ * @brief Starts parallel background observation for a specific value change of a signal.
+*
+* @param[in] signalName - Signal Name which want to observe
+* @param[in] signalValue - Expected Signal value change
+*
+ * @return dword - Observation handle (slot index) for stopping or validating later
+ *
+ * @details Initiates monitoring for a specific value change of the given signal in parallel mode.
+ *
+* @verdict Failed to start background observation \n
+*          Passed Successfully started background observation
+*///*****************************************************************************
+export dword Lib_SVC_StartParallelObservation(signal* signalName, long signalValue)
+{
+  dword slotIndex;
+  dword checkID;
+  
+  #pragma warning(disable: 2038)
+  
+  slotIndex = FindAvailableObservationSlot();
+  
+  if (slotIndex >= kMaxParallelObservations)
+  {
+    testStepFail("", "No available observation slots. Maximum %d parallel observations supported.", kMaxParallelObservations);
+    return kMaxParallelObservations;
+  }
+  
+  // Initialize observation context
+  gObservations[slotIndex].expectedValue = signalValue;
+  gObservations[slotIndex].changeResult = 0;
+  gObservations[slotIndex].isActive = 1;
+  StoreObservationName(slotIndex, signalName.name);
+  
+  // Start the check
+  checkID = chkStart_SignalValueChange(signalName, "SVC_CAPL_Callback_Signal_Value_Parallel");
+  
+  if (!checkID)
+  {
+    gObservations[slotIndex].isActive = 0;
+    testStepFail("", "Signal Value change could not start, Signal is not mapped to message OR CAPL callback does not exist");
+    return kMaxParallelObservations;
+  }
+  
+  gObservations[slotIndex].checkID = checkID;
+  testAddCondition(checkID, VerdictNotExpected);
+  testStep("Observation", "Parallel background check [Handle: %d] of Signal : \"%s\" started for value %d", slotIndex, signalName.name, signalValue);
+  
+  return slotIndex;
+}
+
+/// <StartParallelObservation/Signal>
+/**
+ * @brief Starts parallel background observation for a signal to check if its value is inside or outside a specified range.
+*
+* @param[in] signalName - Signal Name which want to observe
+* @param[in] aMinValue - aMinValue <= aMaxValue
+* @param[in] aMaxValue - aMinValue <= aMaxValue
+* @param[in] IsValueInsideRangeExpected - YES or NO. If expected then YES
+*
+ * @return dword - Observation handle (slot index) for stopping or validating later
+ *
+ * @details Initiates monitoring for the signal to check if its value enters or leaves the specified range in parallel mode.
+ *
+* @verdict Failed to start background observation \n
+*          Passed Successfully started background observation
+*///***************************************************************************** 
+export dword Lib_SVC_StartParallelObservation(signal* signalName, double aMinValue, double aMaxValue, dword IsValueInsideRangeExpected)
+{
+  dword slotIndex;
+  dword checkID;
+  
+  #pragma warning(disable: 2038)
+  
+  slotIndex = FindAvailableObservationSlot();
+  
+  if (slotIndex >= kMaxParallelObservations)
+  {
+    testStepFail("", "No available observation slots. Maximum %d parallel observations supported.", kMaxParallelObservations);
+    return kMaxParallelObservations;
+  }
+  
+  if (aMinValue > aMaxValue)
+  {
+    testStepFail("WrongInput", "Lib_SVC_StartParallelObservation()! should be aMinValue (%ld) <= aMaxValue (%ld)", aMinValue, aMaxValue);
+    return kMaxParallelObservations;
+  }
+  
+  // Initialize observation context
+  gObservations[slotIndex].expectedMinValue = aMinValue;
+  gObservations[slotIndex].expectedMaxValue = aMaxValue;
+  gObservations[slotIndex].isValueInsideRangeExpected = IsValueInsideRangeExpected;
+  gObservations[slotIndex].changeResult = 0;
+  gObservations[slotIndex].isActive = 1;
+  StoreObservationName(slotIndex, signalName.name);
+  
+  // Start the check
+  if (IsValueInsideRangeExpected == 1)
+  {
+    checkID = ChkStart_MsgSignalValueRangeViolation(signalName, aMinValue, aMaxValue, "SVC_CAPL_Callback_Signal_Value_Range_Parallel");
+  }
+  else
+  {
+    checkID = ChkStart_MsgSignalValueInvalid(signalName, aMinValue, aMaxValue, "SVC_CAPL_Callback_Signal_Value_Range_Parallel");
+  }
+   
+  if (!checkID)
+  {
+    gObservations[slotIndex].isActive = 0;
+    testStepFail("", "Signal Value change could not start, Signal not available OR CAPL callback does not exist");
+    return kMaxParallelObservations;
+  }
+  
+  gObservations[slotIndex].checkID = checkID;
+  testAddCondition(checkID, VerdictNotExpected);
+  testStep("Observation", "Parallel background check [Handle: %d] of Signal : \"%s\" started for value range (%ld ... %ld)", slotIndex, signalName.name, aMinValue, aMaxValue);
+  
+  return slotIndex;
+}
+
+/// <StartParallelObservation>
+/**
+* @brief Stops a specific parallel background observation identified by its handle.
+*
+* @param[in] observationHandle - The handle returned by Lib_SVC_StartParallelObservation
+*
+* @details Removes the test condition associated with the specified observation and logs the stop event.
+*          Does not affect other ongoing observations.
+*
+* @verdict Failed to stop observation \n
+*          Passed Successfully stopped background observation
+*///*****************************************************************************
+export void Lib_SVC_StopParallelObservation(dword observationHandle)
+{
+  long ret;
+  
+  if (observationHandle >= kMaxParallelObservations)
+  {
+    testStepFail("Observation", "Invalid observation handle: %d", observationHandle);
+    return;
+  }
+  
+  if (!gObservations[observationHandle].isActive)
+  {
+    testStepFail("Observation", "Observation handle %d is not active", observationHandle);
+    return;
+  }
+  
+  ret = testRemoveCondition(gObservations[observationHandle].checkID);
+  
+  if (ret == 0)
+    testStep("Observation", "Parallel background check [Handle: %d] for \"%s\" stopped.", observationHandle, gObservations[observationHandle].observedName);
+  else
+    testStepFail("Observation", "Parallel background check [Handle: %d] could not be stopped. Constraint could not be removed", observationHandle);
+  
+  // Stop the check
+  ChkControl_Stop(gObservations[observationHandle].checkID);
+
+  // Reset stored values of the check
+  ChkControl_Destroy(gObservations[observationHandle].checkID);
+  
+  // Mark slot as inactive
+  gObservations[observationHandle].isActive = 0;
+  gObservations[observationHandle].checkID = 0;
+  gObservations[observationHandle].changeResult = 0;
+}
+
+/// <StartParallelObservation>
+/**
+* @brief Validates whether a value change occurred for a specific parallel observation.
+*
+* @param[in] observationHandle - The handle returned by Lib_SVC_StartParallelObservation
+* @param[in] IsChangeExpected - YES if a change was expected, NO otherwise.
+*
+* @details Checks if the observed value change matches the expectation for the specified observation 
+*          and reports the result as a test step pass or fail.
+*
+*///*****************************************************************************
+export void Lib_SVC_ValidateParallelResult(dword observationHandle, enum eChangeExpected IsChangeExpected)
+{
+  if (observationHandle >= kMaxParallelObservations)
+  {
+    testStepFail("Validation", "Invalid observation handle: %d", observationHandle);
+    return;
+  }
+  
+  if (!gObservations[observationHandle].isActive)
+  {
+    testStepFail("Validation", "Observation handle %d is not active", observationHandle);
+    return;
+  }
+  
+  if (IsChangeExpected == 1)
+  {
+    if(gObservations[observationHandle].changeResult)
+      testStepPass("Validation", "[Handle: %d] Signal Or SysVariable \"%s\" value has changed as Expected", observationHandle, gObservations[observationHandle].observedName);
+    else
+      testStepFail("Validation", "[Handle: %d] Signal Or SysVariable \"%s\" value has NOT changed as Expected", observationHandle, gObservations[observationHandle].observedName); 
+  }
+  else
+  {
+    if(gObservations[observationHandle].changeResult == 0)
+      testStepPass("Validation", "[Handle: %d] Signal Or SysVariable \"%s\" value has NOT changed as Expected", observationHandle, gObservations[observationHandle].observedName);
+    else
+      testStepFail("Validation", "[Handle: %d] Signal Or SysVariable \"%s\" value has changed which is not Expected", observationHandle, gObservations[observationHandle].observedName);
+  }
+}
+
+/// <StartParallelObservation>
+/**
+* @brief Stops all active parallel observations.
+*
+* @details Iterates through all observation slots and stops any active observations.
+*          Useful for cleanup or resetting the observation state.
+*
+*///*****************************************************************************
+export void Lib_SVC_StopAllParallelObservations()
+{
+  dword i;
+  dword stoppedCount = 0;
+  
+  for (i = 0; i < kMaxParallelObservations; i++)
+  {
+    if (gObservations[i].isActive)
+    {
+      testRemoveCondition(gObservations[i].checkID);
+      ChkControl_Stop(gObservations[i].checkID);
+      ChkControl_Destroy(gObservations[i].checkID);
+      gObservations[i].isActive = 0;
+      gObservations[i].checkID = 0;
+      gObservations[i].changeResult = 0;
+      stoppedCount++;
+    }
+  }
+  
+  testStep("Observation", "Stopped %d parallel observation(s)", stoppedCount);
+}
+
+
+
+
+
+
